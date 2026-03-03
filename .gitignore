@@ -1,0 +1,44 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# PHP/Composer
+/vendor/
+composer.phar
+
+# Node (frontend tooling, if used)
+/node_modules/
+
+# Build/cache/temp
+/dist/
+/build/
+/tmp/
+/temp/
+/.cache/
+coverage/
+
+# XAMPP/LAMP uploads and runtime artifacts
+uploads/
+*.sqlite
+*.db
+
