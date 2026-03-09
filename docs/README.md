@@ -1,3 +1,3 @@
-# Documentation
+# Docs
 
-- Put architecture notes, ERD, and report assets here.
+- `PROJECT_OVERVIEW.md`: architecture summary, security controls, and CRUD mapping.

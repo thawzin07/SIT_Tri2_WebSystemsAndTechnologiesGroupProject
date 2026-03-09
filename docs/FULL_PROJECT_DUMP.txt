@@ -1,0 +1,2710 @@
+FILE: .env.example
+APP_NAME=PulsePoint Fitness
+APP_URL=http://localhost:8000
+APP_ENV=development
+APP_DEBUG=true
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=pulsepoint_fitness
+DB_USER=root
+DB_PASS=
+
+
+FILE: .gitignore
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# PHP/Composer
+/vendor/
+composer.phar
+
+# Node (frontend tooling, if used)
+/node_modules/
+
+# Build/cache/temp
+/dist/
+/build/
+/tmp/
+/temp/
+/.cache/
+coverage/
+
+# XAMPP/LAMP uploads and runtime artifacts
+uploads/
+*.sqlite
+*.db
+
+
+
+FILE: app\Controllers\AdminController.php
+<?php
+
+namespace App\Controllers;
+
+use App\Core\Controller;
+use App\Core\Validator;
+use App\Models\BookingModel;
+use App\Models\ContactMessageModel;
+use App\Models\GymClassModel;
+use App\Models\LocationModel;
+use App\Models\MembershipModel;
+use App\Models\MembershipPlanModel;
+use App\Models\TrainerModel;
+use App\Models\UserModel;
+
+class AdminController extends Controller
+{
+    public function dashboard(): void
+    {
+        $this->requireAdmin();
+
+        $userModel = new UserModel();
+        $membershipModel = new MembershipModel();
+        $bookingModel = new BookingModel();
+
+        $popular = $bookingModel->popularClass();
+
+        $this->render('admin/dashboard', [
+            'title' => 'Admin Dashboard',
+            'totalUsers' => count($userModel->allWithRole()),
+            'activeMemberships' => $membershipModel->countActive(),
+            'totalBookings' => $bookingModel->countAll(),
+            'popularClass' => $popular['title'] ?? 'N/A',
+        ]);
+    }
+
+    public function users(): void
+    {
+        $this->requireAdmin();
+        $userModel = new UserModel();
+        $this->render('admin/users', ['title' => 'Manage Users', 'users' => $userModel->allWithRole()]);
+    }
+
+    public function createUser(): void
+    {
+        $this->requireAdmin();
+        verify_csrf();
+
+        $fullName = trim((string) ($_POST['full_name'] ?? ''));
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $phone = trim((string) ($_POST['phone'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        $roleId = (int) ($_POST['role_id'] ?? 2);
+
+        if (!Validator::required($fullName) || !Validator::email($email) || !Validator::min($password, 8)) {
+            flash('error', 'Invalid user details.');
+            redirect('/admin/users');
+        }
+
+        $userModel = new UserModel();
+        if ($userModel->findByEmail($email)) {
+            flash('error', 'Email already exists.');
+            redirect('/admin/users');
+        }
+
+        $userModel->create([
+            'role_id' => in_array($roleId, [1, 2], true) ? $roleId : 2,
+            'full_name' => $fullName,
+            'email' => $email,
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'phone' => $phone,
+        ]);
+
+        flash('success', 'User created.');
+        redirect('/admin/users');
+    }
+
+    public function updateUser(): void
+    {
+        $this->requireAdmin();
+        verify_csrf();
+
+        $id = (int) ($_POST['id'] ?? 0);
+        $roleId = (int) ($_POST['role_id'] ?? 2);
+        $fullName = trim((string) ($_POST['full_name'] ?? ''));
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $phone = trim((string) ($_POST['phone'] ?? ''));
+
+        if ($id < 1 || !Validator::required($fullName) || !Validator::email($email)) {
+            flash('error', 'Invalid user update data.');
+            redirect('/admin/users');
+        }
+
+        $userModel = new UserModel();
+        $userModel->updateByAdmin($id, in_array($roleId, [1, 2], true) ? $roleId : 2, $fullName, $email, $phone);
+
+        flash('success', 'User updated.');
+        redirect('/admin/users');
+    }
+
+    public function deleteUser(): void
+    {
+        $this->requireAdmin();
+        verify_csrf();
+
+        $id = (int) ($_POST['id'] ?? 0);
+        if ($id === (int) current_user()['id']) {
+            flash('error', 'You cannot delete your own account.');
+            redirect('/admin/users');
+        }
+
+        (new UserModel())->delete($id);
+        flash('success', 'User deleted.');
+        redirect('/admin/users');
+    }
+
+    public function plans(): void
+    {
+        $this->requireAdmin();
+        $this->render('admin/plans', ['title' => 'Manage Membership Plans', 'plans' => (new MembershipPlanModel())->all()]);
+    }
+
+    public function createPlan(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new MembershipPlanModel())->create($this->planPayload());
+        flash('success', 'Plan created.'); redirect('/admin/plans');
+    }
+
+    public function updatePlan(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new MembershipPlanModel())->update((int) $_POST['id'], $this->planPayload());
+        flash('success', 'Plan updated.'); redirect('/admin/plans');
+    }
+
+    public function deletePlan(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new MembershipPlanModel())->delete((int) $_POST['id']);
+        flash('success', 'Plan deleted.'); redirect('/admin/plans');
+    }
+
+    private function planPayload(): array
+    {
+        return [
+            'name' => trim((string) $_POST['name']),
+            'price' => (float) $_POST['price'],
+            'duration_months' => (int) $_POST['duration_months'],
+            'description' => trim((string) $_POST['description']),
+            'status' => ($_POST['status'] ?? 'inactive') === 'active' ? 'active' : 'inactive',
+        ];
+    }
+
+    public function trainers(): void
+    {
+        $this->requireAdmin();
+        $this->render('admin/trainers', ['title' => 'Manage Trainers', 'trainers' => (new TrainerModel())->all()]);
+    }
+
+    public function createTrainer(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new TrainerModel())->create($this->trainerPayload());
+        flash('success', 'Trainer created.'); redirect('/admin/trainers');
+    }
+
+    public function updateTrainer(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new TrainerModel())->update((int) $_POST['id'], $this->trainerPayload());
+        flash('success', 'Trainer updated.'); redirect('/admin/trainers');
+    }
+
+    public function deleteTrainer(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new TrainerModel())->delete((int) $_POST['id']);
+        flash('success', 'Trainer deleted.'); redirect('/admin/trainers');
+    }
+
+    private function trainerPayload(): array
+    {
+        return [
+            'name' => trim((string) $_POST['name']),
+            'specialty' => trim((string) $_POST['specialty']),
+            'bio' => trim((string) $_POST['bio']),
+            'image_path' => trim((string) ($_POST['image_path'] ?? '')),
+            'status' => ($_POST['status'] ?? 'inactive') === 'active' ? 'active' : 'inactive',
+        ];
+    }
+
+    public function classes(): void
+    {
+        $this->requireAdmin();
+        $this->render('admin/classes', [
+            'title' => 'Manage Classes',
+            'classes' => (new GymClassModel())->all(),
+            'trainers' => (new TrainerModel())->all(),
+            'locations' => (new LocationModel())->all(),
+        ]);
+    }
+
+    public function createClass(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new GymClassModel())->create($this->classPayload());
+        flash('success', 'Class created.'); redirect('/admin/classes');
+    }
+
+    public function updateClass(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new GymClassModel())->update((int) $_POST['id'], $this->classPayload());
+        flash('success', 'Class updated.'); redirect('/admin/classes');
+    }
+
+    public function deleteClass(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new GymClassModel())->delete((int) $_POST['id']);
+        flash('success', 'Class deleted.'); redirect('/admin/classes');
+    }
+
+    private function classPayload(): array
+    {
+        return [
+            'trainer_id' => (int) $_POST['trainer_id'],
+            'location_id' => (int) $_POST['location_id'],
+            'title' => trim((string) $_POST['title']),
+            'description' => trim((string) $_POST['description']),
+            'class_date' => trim((string) $_POST['class_date']),
+            'start_time' => trim((string) $_POST['start_time']),
+            'end_time' => trim((string) $_POST['end_time']),
+            'capacity' => (int) $_POST['capacity'],
+            'status' => ($_POST['status'] ?? 'inactive') === 'active' ? 'active' : 'inactive',
+        ];
+    }
+
+    public function locations(): void
+    {
+        $this->requireAdmin();
+        $this->render('admin/locations', ['title' => 'Manage Locations', 'locations' => (new LocationModel())->all()]);
+    }
+
+    public function createLocation(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new LocationModel())->create($this->locationPayload());
+        flash('success', 'Location created.'); redirect('/admin/locations');
+    }
+
+    public function updateLocation(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new LocationModel())->update((int) $_POST['id'], $this->locationPayload());
+        flash('success', 'Location updated.'); redirect('/admin/locations');
+    }
+
+    public function deleteLocation(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new LocationModel())->delete((int) $_POST['id']);
+        flash('success', 'Location deleted.'); redirect('/admin/locations');
+    }
+
+    private function locationPayload(): array
+    {
+        return [
+            'name' => trim((string) $_POST['name']),
+            'address' => trim((string) $_POST['address']),
+            'phone' => trim((string) $_POST['phone']),
+            'opening_hours' => trim((string) $_POST['opening_hours']),
+            'status' => ($_POST['status'] ?? 'inactive') === 'active' ? 'active' : 'inactive',
+        ];
+    }
+
+    public function bookings(): void
+    {
+        $this->requireAdmin();
+        $this->render('admin/bookings', ['title' => 'Manage Bookings', 'bookings' => (new BookingModel())->allWithDetails()]);
+    }
+
+    public function updateBooking(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        $status = ($_POST['booking_status'] ?? 'booked');
+        $status = in_array($status, ['booked', 'cancelled', 'completed'], true) ? $status : 'booked';
+        (new BookingModel())->updateStatus((int) $_POST['id'], $status);
+        flash('success', 'Booking updated.'); redirect('/admin/bookings');
+    }
+
+    public function deleteBooking(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new BookingModel())->delete((int) $_POST['id']);
+        flash('success', 'Booking deleted.'); redirect('/admin/bookings');
+    }
+
+    public function messages(): void
+    {
+        $this->requireAdmin();
+        $this->render('admin/messages', ['title' => 'Contact Messages', 'messages' => (new ContactMessageModel())->all()]);
+    }
+
+    public function deleteMessage(): void
+    {
+        $this->requireAdmin(); verify_csrf();
+        (new ContactMessageModel())->delete((int) $_POST['id']);
+        flash('success', 'Message deleted.'); redirect('/admin/messages');
+    }
+}
+
+
+FILE: app\Controllers\AuthController.php
+<?php
+
+namespace App\Controllers;
+
+use App\Core\Auth;
+use App\Core\Controller;
+use App\Core\Validator;
+use App\Models\UserModel;
+
+class AuthController extends Controller
+{
+    public function showRegister(): void
+    {
+        $this->render('pages/register', ['title' => 'Register']);
+    }
+
+    public function register(): void
+    {
+        verify_csrf();
+
+        $fullName = trim((string) ($_POST['full_name'] ?? ''));
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $phone = trim((string) ($_POST['phone'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        $confirmPassword = (string) ($_POST['password_confirmation'] ?? '');
+
+        set_old($_POST);
+
+        if (!Validator::required($fullName) || !Validator::email($email) || !Validator::min($password, 8) || $password !== $confirmPassword) {
+            flash('error', 'Please fill in valid registration details.');
+            redirect('/register');
+        }
+
+        $userModel = new UserModel();
+        if ($userModel->findByEmail($email)) {
+            flash('error', 'Email is already registered.');
+            redirect('/register');
+        }
+
+        $userId = $userModel->create([
+            'role_id' => 2,
+            'full_name' => $fullName,
+            'email' => $email,
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'phone' => $phone,
+        ]);
+
+        $user = $userModel->findWithRole($userId);
+        Auth::login($user);
+        clear_old();
+        flash('success', 'Welcome to PulsePoint Fitness. Your account is ready.');
+        redirect('/member/dashboard');
+    }
+
+    public function showLogin(): void
+    {
+        $this->render('pages/login', ['title' => 'Member Login', 'adminMode' => false]);
+    }
+
+    public function showAdminLogin(): void
+    {
+        $this->render('pages/login', ['title' => 'Admin Login', 'adminMode' => true]);
+    }
+
+    public function login(): void
+    {
+        $this->attemptLogin(false);
+    }
+
+    public function adminLogin(): void
+    {
+        $this->attemptLogin(true);
+    }
+
+    private function attemptLogin(bool $adminOnly): void
+    {
+        verify_csrf();
+
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        set_old($_POST);
+
+        if (!Validator::email($email) || !Validator::required($password)) {
+            flash('error', 'Invalid login details.');
+            redirect($adminOnly ? '/admin/login' : '/login');
+        }
+
+        $userModel = new UserModel();
+        $user = $userModel->findByEmail($email);
+
+        if (!$user || !password_verify($password, $user['password_hash'])) {
+            flash('error', 'Email or password is incorrect.');
+            redirect($adminOnly ? '/admin/login' : '/login');
+        }
+
+        $userWithRole = $userModel->findWithRole((int) $user['id']);
+        if ($adminOnly && ($userWithRole['role_name'] ?? '') !== 'admin') {
+            flash('error', 'Admin credentials are required for this page.');
+            redirect('/admin/login');
+        }
+
+        Auth::login($userWithRole);
+        clear_old();
+        flash('success', 'Login successful.');
+
+        if (($userWithRole['role_name'] ?? '') === 'admin') {
+            redirect('/admin/dashboard');
+        }
+
+        redirect('/member/dashboard');
+    }
+
+    public function logout(): void
+    {
+        verify_csrf();
+        Auth::logout();
+        session_start();
+        flash('success', 'You have been logged out.');
+        redirect('/');
+    }
+}
+
+
+FILE: app\Controllers\HomeController.php
+<?php
+
+namespace App\Controllers;
+
+use App\Core\Controller;
+use App\Core\Validator;
+use App\Models\ContactMessageModel;
+use App\Models\GymClassModel;
+use App\Models\LocationModel;
+use App\Models\MembershipPlanModel;
+use App\Models\TrainerModel;
+
+class HomeController extends Controller
+{
+    public function home(): void
+    {
+        $planModel = new MembershipPlanModel();
+        $classModel = new GymClassModel();
+        $trainerModel = new TrainerModel();
+        $locationModel = new LocationModel();
+
+        $this->render('pages/home', [
+            'plans' => array_slice($planModel->activePlans(), 0, 3),
+            'classes' => array_slice($classModel->upcomingActive(), 0, 3),
+            'trainers' => array_slice($trainerModel->active(), 0, 3),
+            'locations' => array_slice($locationModel->active(), 0, 2),
+            'title' => 'Home',
+        ]);
+    }
+
+    public function about(): void
+    {
+        $this->render('pages/about', ['title' => 'About Us']);
+    }
+
+    public function plans(): void
+    {
+        $planModel = new MembershipPlanModel();
+        $this->render('pages/plans', ['plans' => $planModel->activePlans(), 'title' => 'Membership Plans']);
+    }
+
+    public function trainers(): void
+    {
+        $trainerModel = new TrainerModel();
+        $this->render('pages/trainers', ['trainers' => $trainerModel->active(), 'title' => 'Trainers']);
+    }
+
+    public function schedule(): void
+    {
+        $classModel = new GymClassModel();
+        $this->render('pages/schedule', ['classes' => $classModel->upcomingActive(), 'title' => 'Class Schedule']);
+    }
+
+    public function locations(): void
+    {
+        $locationModel = new LocationModel();
+        $this->render('pages/locations', ['locations' => $locationModel->active(), 'title' => 'Gym Locations']);
+    }
+
+    public function contact(): void
+    {
+        $this->render('pages/contact', ['title' => 'Contact']);
+    }
+
+    public function submitContact(): void
+    {
+        verify_csrf();
+
+        $name = trim((string) ($_POST['name'] ?? ''));
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $subject = trim((string) ($_POST['subject'] ?? ''));
+        $message = trim((string) ($_POST['message'] ?? ''));
+
+        set_old($_POST);
+
+        if (!Validator::required($name) || !Validator::required($subject) || !Validator::required($message) || !Validator::email($email)) {
+            flash('error', 'Please provide valid contact details.');
+            redirect('/contact');
+        }
+
+        $model = new ContactMessageModel();
+        $model->create([
+            'name' => $name,
+            'email' => $email,
+            'subject' => $subject,
+            'message' => $message,
+        ]);
+
+        clear_old();
+        flash('success', 'Message submitted successfully. We will get back to you soon.');
+        redirect('/contact');
+    }
+
+    public function faq(): void
+    {
+        $this->render('pages/faq', ['title' => 'FAQ']);
+    }
+}
+
+
+FILE: app\Controllers\MemberController.php
+<?php
+
+namespace App\Controllers;
+
+use App\Core\Controller;
+use App\Core\Validator;
+use App\Models\BookingModel;
+use App\Models\GymClassModel;
+use App\Models\MembershipModel;
+use App\Models\MembershipPlanModel;
+use App\Models\UserModel;
+
+class MemberController extends Controller
+{
+    public function dashboard(): void
+    {
+        $this->requireAuth();
+
+        $user = current_user();
+        $membershipModel = new MembershipModel();
+        $bookingModel = new BookingModel();
+        $classModel = new GymClassModel();
+
+        $this->render('pages/member_dashboard', [
+            'title' => 'Member Dashboard',
+            'membership' => $membershipModel->currentForUser((int) $user['id']),
+            'history' => $membershipModel->historyForUser((int) $user['id']),
+            'bookings' => $bookingModel->userBookings((int) $user['id']),
+            'classes' => $classModel->upcomingActive(),
+        ]);
+    }
+
+    public function profile(): void
+    {
+        $this->requireAuth();
+        $this->render('pages/profile', ['title' => 'Profile', 'user' => current_user()]);
+    }
+
+    public function updateProfile(): void
+    {
+        $this->requireAuth();
+        verify_csrf();
+
+        $fullName = trim((string) ($_POST['full_name'] ?? ''));
+        $phone = trim((string) ($_POST['phone'] ?? ''));
+
+        if (!Validator::required($fullName)) {
+            flash('error', 'Full name is required.');
+            redirect('/member/profile');
+        }
+
+        $user = current_user();
+        $userModel = new UserModel();
+        $userModel->updateBasic((int) $user['id'], $fullName, $phone);
+
+        flash('success', 'Profile updated successfully.');
+        redirect('/member/profile');
+    }
+
+    public function subscribe(): void
+    {
+        $this->requireAuth();
+        verify_csrf();
+
+        $planId = (int) ($_POST['plan_id'] ?? 0);
+        $planModel = new MembershipPlanModel();
+        $plan = $planModel->find($planId);
+
+        if (!$plan || $plan['status'] !== 'active') {
+            flash('error', 'Selected plan is unavailable.');
+            redirect('/plans');
+        }
+
+        $start = new \DateTime('today');
+        $end = (clone $start)->modify('+' . (int) $plan['duration_months'] . ' months');
+
+        $membershipModel = new MembershipModel();
+        $membershipModel->create((int) current_user()['id'], $planId, $start->format('Y-m-d'), $end->format('Y-m-d'), 'active');
+
+        flash('success', 'Membership subscribed successfully.');
+        redirect('/member/dashboard');
+    }
+
+    public function renew(): void
+    {
+        $this->requireAuth();
+        verify_csrf();
+
+        $planId = (int) ($_POST['plan_id'] ?? 0);
+        $planModel = new MembershipPlanModel();
+        $plan = $planModel->find($planId);
+
+        if (!$plan || $plan['status'] !== 'active') {
+            flash('error', 'Selected plan is unavailable.');
+            redirect('/member/dashboard');
+        }
+
+        $membershipModel = new MembershipModel();
+        $current = $membershipModel->currentForUser((int) current_user()['id']);
+
+        $baseDate = new \DateTime('today');
+        if ($current && in_array($current['status'], ['active', 'expired'], true) && strtotime($current['end_date']) > time()) {
+            $baseDate = new \DateTime($current['end_date']);
+        }
+        $endDate = (clone $baseDate)->modify('+' . (int) $plan['duration_months'] . ' months');
+
+        $membershipModel->create((int) current_user()['id'], $planId, $baseDate->format('Y-m-d'), $endDate->format('Y-m-d'), 'active');
+
+        flash('success', 'Membership renewed.');
+        redirect('/member/dashboard');
+    }
+
+    public function cancelMembership(): void
+    {
+        $this->requireAuth();
+        verify_csrf();
+
+        $membershipId = (int) ($_POST['membership_id'] ?? 0);
+        $membershipModel = new MembershipModel();
+        $membershipModel->cancel($membershipId, (int) current_user()['id']);
+
+        flash('success', 'Membership cancelled.');
+        redirect('/member/dashboard');
+    }
+
+    public function bookings(): void
+    {
+        $this->requireAuth();
+
+        $bookingModel = new BookingModel();
+        $classModel = new GymClassModel();
+
+        $this->render('pages/bookings', [
+            'title' => 'My Bookings',
+            'bookings' => $bookingModel->userBookings((int) current_user()['id']),
+            'classes' => $classModel->upcomingActive(),
+        ]);
+    }
+
+    public function bookClass(): void
+    {
+        $this->requireAuth();
+        verify_csrf();
+
+        $classId = (int) ($_POST['class_id'] ?? 0);
+        $classModel = new GymClassModel();
+        $bookingModel = new BookingModel();
+
+        $class = $classModel->find($classId);
+        if (!$class || $class['status'] !== 'active') {
+            flash('error', 'Class not available.');
+            redirect('/member/bookings');
+        }
+
+        if ($bookingModel->existsActiveBooking((int) current_user()['id'], $classId)) {
+            flash('error', 'You already booked this class.');
+            redirect('/member/bookings');
+        }
+
+        $bookedCount = $bookingModel->classBookingCount($classId);
+        if ($bookedCount >= (int) $class['capacity']) {
+            flash('error', 'Class is full.');
+            redirect('/member/bookings');
+        }
+
+        $bookingModel->create((int) current_user()['id'], $classId);
+        flash('success', 'Class booked successfully.');
+        redirect('/member/bookings');
+    }
+
+    public function cancelBooking(): void
+    {
+        $this->requireAuth();
+        verify_csrf();
+
+        $bookingId = (int) ($_POST['booking_id'] ?? 0);
+        $bookingModel = new BookingModel();
+        $bookingModel->cancel($bookingId, (int) current_user()['id']);
+
+        flash('success', 'Booking cancelled.');
+        redirect('/member/bookings');
+    }
+}
+
+
+FILE: app\Core\Auth.php
+<?php
+
+namespace App\Core;
+
+use App\Models\UserModel;
+
+class Auth
+{
+    public static function user(): ?array
+    {
+        if (empty($_SESSION['user_id'])) {
+            return null;
+        }
+
+        static $user = null;
+        if ($user === null || (int)$user['id'] !== (int)$_SESSION['user_id']) {
+            $userModel = new UserModel();
+            $user = $userModel->findWithRole((int) $_SESSION['user_id']);
+        }
+
+        return $user;
+    }
+
+    public static function check(): bool
+    {
+        return self::user() !== null;
+    }
+
+    public static function login(array $user): void
+    {
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = (int) $user['id'];
+    }
+
+    public static function logout(): void
+    {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        session_destroy();
+    }
+}
+
+
+FILE: app\Core\Controller.php
+<?php
+
+namespace App\Core;
+
+class Controller
+{
+    protected function render(string $view, array $data = [], string $layout = 'main'): void
+    {
+        view($view, $data, $layout);
+    }
+
+    protected function requireAuth(): void
+    {
+        if (!Auth::check()) {
+            flash('error', 'Please log in to continue.');
+            redirect('/login');
+        }
+    }
+
+    protected function requireAdmin(): void
+    {
+        if (!Auth::check() || !is_admin()) {
+            flash('error', 'Admin access is required.');
+            redirect('/admin/login');
+        }
+    }
+}
+
+
+FILE: app\Core\Database.php
+<?php
+
+namespace App\Core;
+
+use PDO;
+use PDOException;
+
+class Database
+{
+    private static ?PDO $pdo = null;
+
+    public static function connection(): PDO
+    {
+        if (self::$pdo !== null) {
+            return self::$pdo;
+        }
+
+        $db = config('database');
+        $dsn = sprintf(
+            'mysql:host=%s;port=%d;dbname=%s;charset=%s',
+            $db['host'],
+            $db['port'],
+            $db['name'],
+            $db['charset']
+        );
+
+        try {
+            self::$pdo = new PDO($dsn, $db['user'], $db['pass'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+        } catch (PDOException $e) {
+            http_response_code(500);
+            exit('Database connection failed.');
+        }
+
+        return self::$pdo;
+    }
+}
+
+
+FILE: app\Core\helpers.php
+<?php
+
+declare(strict_types=1);
+
+use App\Core\Auth;
+
+function config(string $file): array
+{
+    static $cache = [];
+    if (!isset($cache[$file])) {
+        $cache[$file] = require __DIR__ . '/../../config/' . $file . '.php';
+    }
+    return $cache[$file];
+}
+
+function view(string $template, array $data = [], string $layout = 'main'): void
+{
+    extract($data, EXTR_SKIP);
+    $viewPath = __DIR__ . '/../Views/' . $template . '.php';
+    $layoutPath = __DIR__ . '/../Views/layouts/' . $layout . '.php';
+
+    if (!file_exists($viewPath) || !file_exists($layoutPath)) {
+        http_response_code(500);
+        echo 'View rendering error.';
+        return;
+    }
+
+    ob_start();
+    require $viewPath;
+    $content = ob_get_clean();
+
+    require $layoutPath;
+}
+
+function partial(string $template, array $data = []): void
+{
+    extract($data, EXTR_SKIP);
+    require __DIR__ . '/../Views/partials/' . $template . '.php';
+}
+
+function redirect(string $path): void
+{
+    header('Location: ' . $path);
+    exit;
+}
+
+function e(?string $value): string
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function flash(string $key, ?string $message = null): ?string
+{
+    if ($message !== null) {
+        $_SESSION['flash'][$key] = $message;
+        return null;
+    }
+
+    $value = $_SESSION['flash'][$key] ?? null;
+    unset($_SESSION['flash'][$key]);
+    return $value;
+}
+
+function old(string $key, string $default = ''): string
+{
+    return e($_SESSION['old'][$key] ?? $default);
+}
+
+function set_old(array $data): void
+{
+    $_SESSION['old'] = $data;
+}
+
+function clear_old(): void
+{
+    unset($_SESSION['old']);
+}
+
+function csrf_token(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function csrf_input(): string
+{
+    return '<input type="hidden" name="csrf_token" value="' . e(csrf_token()) . '">';
+}
+
+function verify_csrf(): void
+{
+    $token = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
+        http_response_code(419);
+        exit('Invalid CSRF token.');
+    }
+}
+
+function current_user(): ?array
+{
+    return Auth::user();
+}
+
+function is_admin(): bool
+{
+    $user = Auth::user();
+    return $user !== null && ($user['role_name'] ?? '') === 'admin';
+}
+
+
+FILE: app\Core\Validator.php
+<?php
+
+namespace App\Core;
+
+class Validator
+{
+    public static function email(string $email): bool
+    {
+        return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
+    }
+
+    public static function required(?string $value): bool
+    {
+        return trim((string) $value) !== '';
+    }
+
+    public static function max(string $value, int $length): bool
+    {
+        return mb_strlen(trim($value)) <= $length;
+    }
+
+    public static function min(string $value, int $length): bool
+    {
+        return mb_strlen(trim($value)) >= $length;
+    }
+}
+
+
+FILE: app\Models\BaseModel.php
+<?php
+
+namespace App\Models;
+
+use App\Core\Database;
+use PDO;
+
+abstract class BaseModel
+{
+    protected PDO $db;
+
+    public function __construct()
+    {
+        $this->db = Database::connection();
+    }
+}
+
+
+FILE: app\Models\BookingModel.php
+<?php
+
+namespace App\Models;
+
+class BookingModel extends BaseModel
+{
+    public function userBookings(int $userId): array
+    {
+        $sql = 'SELECT b.*, c.title, c.class_date, c.start_time, c.end_time, l.name AS location_name
+                FROM bookings b
+                JOIN classes c ON c.id = b.class_id
+                JOIN gym_locations l ON l.id = c.location_id
+                WHERE b.user_id = :user_id
+                ORDER BY c.class_date DESC, c.start_time DESC';
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetchAll();
+    }
+
+    public function existsActiveBooking(int $userId, int $classId): bool
+    {
+        $stmt = $this->db->prepare('SELECT id FROM bookings WHERE user_id = :user_id AND class_id = :class_id AND booking_status = :booking_status LIMIT 1');
+        $stmt->execute(['user_id' => $userId, 'class_id' => $classId, 'booking_status' => 'booked']);
+        return (bool) $stmt->fetch();
+    }
+
+    public function classBookingCount(int $classId): int
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) AS total FROM bookings WHERE class_id = :class_id AND booking_status = :booking_status');
+        $stmt->execute(['class_id' => $classId, 'booking_status' => 'booked']);
+        $row = $stmt->fetch();
+        return (int) ($row['total'] ?? 0);
+    }
+
+    public function create(int $userId, int $classId): void
+    {
+        $stmt = $this->db->prepare('INSERT INTO bookings (user_id, class_id, booking_status, created_at, updated_at) VALUES (:user_id, :class_id, :booking_status, NOW(), NOW())');
+        $stmt->execute(['user_id' => $userId, 'class_id' => $classId, 'booking_status' => 'booked']);
+    }
+
+    public function cancel(int $bookingId, int $userId): void
+    {
+        $stmt = $this->db->prepare('UPDATE bookings SET booking_status = :booking_status, updated_at = NOW() WHERE id = :id AND user_id = :user_id');
+        $stmt->execute(['booking_status' => 'cancelled', 'id' => $bookingId, 'user_id' => $userId]);
+    }
+
+    public function allWithDetails(): array
+    {
+        $sql = 'SELECT b.*, u.full_name, u.email, c.title, c.class_date, c.start_time
+                FROM bookings b
+                JOIN users u ON u.id = b.user_id
+                JOIN classes c ON c.id = b.class_id
+                ORDER BY b.id DESC';
+        $stmt = $this->db->query($sql);
+        return $stmt->fetchAll();
+    }
+
+    public function updateStatus(int $id, string $status): void
+    {
+        $stmt = $this->db->prepare('UPDATE bookings SET booking_status = :booking_status, updated_at = NOW() WHERE id = :id');
+        $stmt->execute(['booking_status' => $status, 'id' => $id]);
+    }
+
+    public function delete(int $id): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM bookings WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+
+    public function countAll(): int
+    {
+        $stmt = $this->db->query('SELECT COUNT(*) AS total FROM bookings');
+        $row = $stmt->fetch();
+        return (int) ($row['total'] ?? 0);
+    }
+
+    public function popularClass(): ?array
+    {
+        $sql = 'SELECT c.title, COUNT(*) AS total_bookings
+                FROM bookings b
+                JOIN classes c ON c.id = b.class_id
+                WHERE b.booking_status = "booked"
+                GROUP BY c.id, c.title
+                ORDER BY total_bookings DESC
+                LIMIT 1';
+        $stmt = $this->db->query($sql);
+        return $stmt->fetch() ?: null;
+    }
+}
+
+
+FILE: app\Models\ContactMessageModel.php
+<?php
+
+namespace App\Models;
+
+class ContactMessageModel extends BaseModel
+{
+    public function create(array $data): void
+    {
+        $stmt = $this->db->prepare('INSERT INTO contact_messages (name, email, subject, message, created_at) VALUES (:name, :email, :subject, :message, NOW())');
+        $stmt->execute($data);
+    }
+
+    public function all(): array
+    {
+        $stmt = $this->db->query('SELECT * FROM contact_messages ORDER BY id DESC');
+        return $stmt->fetchAll();
+    }
+
+    public function delete(int $id): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM contact_messages WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+}
+
+
+FILE: app\Models\GymClassModel.php
+<?php
+
+namespace App\Models;
+
+class GymClassModel extends BaseModel
+{
+    public function upcomingActive(): array
+    {
+        $sql = 'SELECT c.*, t.name AS trainer_name, l.name AS location_name,
+                (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.booking_status = "booked") AS booked_count
+                FROM classes c
+                JOIN trainers t ON t.id = c.trainer_id
+                JOIN gym_locations l ON l.id = c.location_id
+                WHERE c.status = :status AND c.class_date >= CURDATE()
+                ORDER BY c.class_date ASC, c.start_time ASC';
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['status' => 'active']);
+        return $stmt->fetchAll();
+    }
+
+    public function all(): array
+    {
+        $sql = 'SELECT c.*, t.name AS trainer_name, l.name AS location_name FROM classes c JOIN trainers t ON t.id = c.trainer_id JOIN gym_locations l ON l.id = c.location_id ORDER BY c.class_date DESC, c.start_time DESC';
+        $stmt = $this->db->query($sql);
+        return $stmt->fetchAll();
+    }
+
+    public function find(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM classes WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function create(array $data): void
+    {
+        $stmt = $this->db->prepare('INSERT INTO classes (trainer_id, location_id, title, description, class_date, start_time, end_time, capacity, status, created_at, updated_at) VALUES (:trainer_id, :location_id, :title, :description, :class_date, :start_time, :end_time, :capacity, :status, NOW(), NOW())');
+        $stmt->execute($data);
+    }
+
+    public function update(int $id, array $data): void
+    {
+        $data['id'] = $id;
+        $stmt = $this->db->prepare('UPDATE classes SET trainer_id = :trainer_id, location_id = :location_id, title = :title, description = :description, class_date = :class_date, start_time = :start_time, end_time = :end_time, capacity = :capacity, status = :status, updated_at = NOW() WHERE id = :id');
+        $stmt->execute($data);
+    }
+
+    public function delete(int $id): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM classes WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+}
+
+
+FILE: app\Models\LocationModel.php
+<?php
+
+namespace App\Models;
+
+class LocationModel extends BaseModel
+{
+    public function active(): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM gym_locations WHERE status = :status ORDER BY id DESC');
+        $stmt->execute(['status' => 'active']);
+        return $stmt->fetchAll();
+    }
+
+    public function all(): array
+    {
+        $stmt = $this->db->query('SELECT * FROM gym_locations ORDER BY id DESC');
+        return $stmt->fetchAll();
+    }
+
+    public function create(array $data): void
+    {
+        $stmt = $this->db->prepare('INSERT INTO gym_locations (name, address, phone, opening_hours, status, created_at, updated_at) VALUES (:name, :address, :phone, :opening_hours, :status, NOW(), NOW())');
+        $stmt->execute($data);
+    }
+
+    public function update(int $id, array $data): void
+    {
+        $data['id'] = $id;
+        $stmt = $this->db->prepare('UPDATE gym_locations SET name = :name, address = :address, phone = :phone, opening_hours = :opening_hours, status = :status, updated_at = NOW() WHERE id = :id');
+        $stmt->execute($data);
+    }
+
+    public function delete(int $id): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM gym_locations WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+}
+
+
+FILE: app\Models\MembershipModel.php
+<?php
+
+namespace App\Models;
+
+class MembershipModel extends BaseModel
+{
+    public function currentForUser(int $userId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT m.*, p.name AS plan_name, p.price, p.duration_months FROM memberships m JOIN membership_plans p ON p.id = m.plan_id WHERE m.user_id = :user_id ORDER BY m.id DESC LIMIT 1');
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function historyForUser(int $userId): array
+    {
+        $stmt = $this->db->prepare('SELECT m.*, p.name AS plan_name, p.price FROM memberships m JOIN membership_plans p ON p.id = m.plan_id WHERE m.user_id = :user_id ORDER BY m.id DESC');
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetchAll();
+    }
+
+    public function create(int $userId, int $planId, string $startDate, string $endDate, string $status = 'active'): void
+    {
+        $stmt = $this->db->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status, created_at, updated_at) VALUES (:user_id, :plan_id, :start_date, :end_date, :status, NOW(), NOW())');
+        $stmt->execute([
+            'user_id' => $userId,
+            'plan_id' => $planId,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'status' => $status,
+        ]);
+    }
+
+    public function cancel(int $membershipId, int $userId): void
+    {
+        $stmt = $this->db->prepare('UPDATE memberships SET status = :status, updated_at = NOW() WHERE id = :id AND user_id = :user_id');
+        $stmt->execute(['status' => 'cancelled', 'id' => $membershipId, 'user_id' => $userId]);
+    }
+
+    public function countActive(): int
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) AS total FROM memberships WHERE status = :status');
+        $stmt->execute(['status' => 'active']);
+        $row = $stmt->fetch();
+        return (int) ($row['total'] ?? 0);
+    }
+}
+
+
+FILE: app\Models\MembershipPlanModel.php
+<?php
+
+namespace App\Models;
+
+class MembershipPlanModel extends BaseModel
+{
+    public function activePlans(): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM membership_plans WHERE status = :status ORDER BY price ASC');
+        $stmt->execute(['status' => 'active']);
+        return $stmt->fetchAll();
+    }
+
+    public function all(): array
+    {
+        $stmt = $this->db->query('SELECT * FROM membership_plans ORDER BY id DESC');
+        return $stmt->fetchAll();
+    }
+
+    public function find(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM membership_plans WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function create(array $data): void
+    {
+        $stmt = $this->db->prepare('INSERT INTO membership_plans (name, price, duration_months, description, status, created_at, updated_at) VALUES (:name, :price, :duration_months, :description, :status, NOW(), NOW())');
+        $stmt->execute($data);
+    }
+
+    public function update(int $id, array $data): void
+    {
+        $data['id'] = $id;
+        $stmt = $this->db->prepare('UPDATE membership_plans SET name = :name, price = :price, duration_months = :duration_months, description = :description, status = :status, updated_at = NOW() WHERE id = :id');
+        $stmt->execute($data);
+    }
+
+    public function delete(int $id): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM membership_plans WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+}
+
+
+FILE: app\Models\TrainerModel.php
+<?php
+
+namespace App\Models;
+
+class TrainerModel extends BaseModel
+{
+    public function active(): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM trainers WHERE status = :status ORDER BY id DESC');
+        $stmt->execute(['status' => 'active']);
+        return $stmt->fetchAll();
+    }
+
+    public function all(): array
+    {
+        $stmt = $this->db->query('SELECT * FROM trainers ORDER BY id DESC');
+        return $stmt->fetchAll();
+    }
+
+    public function create(array $data): void
+    {
+        $stmt = $this->db->prepare('INSERT INTO trainers (name, specialty, bio, image_path, status, created_at, updated_at) VALUES (:name, :specialty, :bio, :image_path, :status, NOW(), NOW())');
+        $stmt->execute($data);
+    }
+
+    public function update(int $id, array $data): void
+    {
+        $data['id'] = $id;
+        $stmt = $this->db->prepare('UPDATE trainers SET name = :name, specialty = :specialty, bio = :bio, image_path = :image_path, status = :status, updated_at = NOW() WHERE id = :id');
+        $stmt->execute($data);
+    }
+
+    public function delete(int $id): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM trainers WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+}
+
+
+FILE: app\Models\UserModel.php
+<?php
+
+namespace App\Models;
+
+class UserModel extends BaseModel
+{
+    public function findByEmail(string $email): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE email = :email LIMIT 1');
+        $stmt->execute(['email' => $email]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function findWithRole(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function create(array $data): int
+    {
+        $stmt = $this->db->prepare('INSERT INTO users (role_id, full_name, email, password_hash, phone, created_at, updated_at) VALUES (:role_id, :full_name, :email, :password_hash, :phone, NOW(), NOW())');
+        $stmt->execute($data);
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function allWithRole(): array
+    {
+        $stmt = $this->db->query('SELECT u.id, u.full_name, u.email, u.phone, r.name AS role_name, u.created_at FROM users u JOIN roles r ON r.id = u.role_id ORDER BY u.id DESC');
+        return $stmt->fetchAll();
+    }
+
+    public function updateBasic(int $id, string $fullName, string $phone): void
+    {
+        $stmt = $this->db->prepare('UPDATE users SET full_name = :full_name, phone = :phone, updated_at = NOW() WHERE id = :id');
+        $stmt->execute(['full_name' => $fullName, 'phone' => $phone, 'id' => $id]);
+    }
+
+    public function updateByAdmin(int $id, int $roleId, string $fullName, string $email, string $phone): void
+    {
+        $stmt = $this->db->prepare('UPDATE users SET role_id = :role_id, full_name = :full_name, email = :email, phone = :phone, updated_at = NOW() WHERE id = :id');
+        $stmt->execute(['role_id' => $roleId, 'full_name' => $fullName, 'email' => $email, 'phone' => $phone, 'id' => $id]);
+    }
+
+    public function delete(int $id): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM users WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+}
+
+
+FILE: app\Views\admin\bookings.php
+<section class="container py-5">
+  <h1 class="section-title">Manage Bookings</h1>
+  <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>ID</th><th>Member</th><th>Email</th><th>Class</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+  <?php foreach ($bookings as $b): ?>
+    <tr><td><?= (int)$b['id'] ?></td><td><?= e($b['full_name']) ?></td><td><?= e($b['email']) ?></td><td><?= e($b['title']) ?></td><td><?= e($b['class_date']) ?> <?= e(substr($b['start_time'],0,5)) ?></td><td><?= e($b['booking_status']) ?></td><td class="d-flex gap-1"><form action="/admin/bookings/update" method="post" class="d-flex gap-1"><?= csrf_input() ?><input type="hidden" name="id" value="<?= (int)$b['id'] ?>"><select name="booking_status" class="form-select form-select-sm"><option value="booked" <?= $b['booking_status']==='booked'?'selected':'' ?>>booked</option><option value="cancelled" <?= $b['booking_status']==='cancelled'?'selected':'' ?>>cancelled</option><option value="completed" <?= $b['booking_status']==='completed'?'selected':'' ?>>completed</option></select><button class="btn btn-sm btn-outline-primary">Save</button></form><form action="/admin/bookings/delete" method="post"><?= csrf_input() ?><input type="hidden" name="id" value="<?= (int)$b['id'] ?>"><button class="btn btn-sm btn-outline-danger">Delete</button></form></td></tr>
+  <?php endforeach; ?>
+  </tbody></table></div>
+</section>
+
+
+FILE: app\Views\admin\classes.php
+<section class="container py-5">
+  <h1 class="section-title">Manage Classes</h1>
+  <form action="/admin/classes/create" method="post" class="card border-0 shadow-sm p-3 mb-4"><?= csrf_input() ?><h2 class="h5">Create Class</h2><div class="row g-2"><div class="col-md-2"><input class="form-control" name="title" placeholder="Title" required></div><div class="col-md-2"><select name="trainer_id" class="form-select" required><?php foreach($trainers as $tr): ?><option value="<?= (int)$tr['id'] ?>"><?= e($tr['name']) ?></option><?php endforeach; ?></select></div><div class="col-md-2"><select name="location_id" class="form-select" required><?php foreach($locations as $lo): ?><option value="<?= (int)$lo['id'] ?>"><?= e($lo['name']) ?></option><?php endforeach; ?></select></div><div class="col-md-2"><input type="date" class="form-control" name="class_date" required></div><div class="col-md-1"><input type="time" class="form-control" name="start_time" required></div><div class="col-md-1"><input type="time" class="form-control" name="end_time" required></div><div class="col-md-1"><input type="number" class="form-control" name="capacity" placeholder="Cap" required></div><div class="col-md-1"><select name="status" class="form-select"><option>active</option><option>inactive</option></select></div><div class="col-12"><input class="form-control" name="description" placeholder="Description" required></div><div class="col-12"><button class="btn btn-brand" type="submit">Add Class</button></div></div></form>
+  <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>ID</th><th>Title</th><th>Trainer</th><th>Location</th><th>Date</th><th>Time</th><th>Cap</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+  <?php foreach ($classes as $c): ?>
+    <tr><form action="/admin/classes/update" method="post"><?= csrf_input() ?><td><?= (int)$c['id'] ?><input type="hidden" name="id" value="<?= (int)$c['id'] ?>"></td><td><input class="form-control form-control-sm" name="title" value="<?= e($c['title']) ?>" required><input type="hidden" name="description" value="<?= e($c['description']) ?>"></td><td><select name="trainer_id" class="form-select form-select-sm"><?php foreach($trainers as $tr): ?><option value="<?= (int)$tr['id'] ?>" <?= (int)$tr['id']===(int)$c['trainer_id']?'selected':'' ?>><?= e($tr['name']) ?></option><?php endforeach; ?></select></td><td><select name="location_id" class="form-select form-select-sm"><?php foreach($locations as $lo): ?><option value="<?= (int)$lo['id'] ?>" <?= (int)$lo['id']===(int)$c['location_id']?'selected':'' ?>><?= e($lo['name']) ?></option><?php endforeach; ?></select></td><td><input type="date" class="form-control form-control-sm" name="class_date" value="<?= e($c['class_date']) ?>" required></td><td><input type="time" class="form-control form-control-sm" name="start_time" value="<?= e(substr($c['start_time'],0,5)) ?>" required><input type="time" class="form-control form-control-sm mt-1" name="end_time" value="<?= e(substr($c['end_time'],0,5)) ?>" required></td><td><input type="number" class="form-control form-control-sm" name="capacity" value="<?= (int)$c['capacity'] ?>" required></td><td><select name="status" class="form-select form-select-sm"><option value="active" <?= $c['status']==='active'?'selected':'' ?>>active</option><option value="inactive" <?= $c['status']==='inactive'?'selected':'' ?>>inactive</option></select></td><td class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary" type="submit">Save</button></form><form action="/admin/classes/delete" method="post"><?= csrf_input() ?><input type="hidden" name="id" value="<?= (int)$c['id'] ?>"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form></td></tr>
+  <?php endforeach; ?>
+  </tbody></table></div>
+</section>
+
+
+FILE: app\Views\admin\dashboard.php
+<section class="container py-5">
+  <h1 class="section-title">Admin Dashboard</h1>
+  <div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><p class="mb-1">Total Users</p><h2 class="h3 mb-0"><?= (int)$totalUsers ?></h2></div></div>
+    <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><p class="mb-1">Active Memberships</p><h2 class="h3 mb-0"><?= (int)$activeMemberships ?></h2></div></div>
+    <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><p class="mb-1">Total Bookings</p><h2 class="h3 mb-0"><?= (int)$totalBookings ?></h2></div></div>
+    <div class="col-md-3"><div class="card border-0 shadow-sm p-3"><p class="mb-1">Most Popular Class</p><h2 class="h6 mb-0"><?= e($popularClass) ?></h2></div></div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-brand" href="/admin/users">Users</a>
+    <a class="btn btn-brand" href="/admin/plans">Plans</a>
+    <a class="btn btn-brand" href="/admin/trainers">Trainers</a>
+    <a class="btn btn-brand" href="/admin/classes">Classes</a>
+    <a class="btn btn-brand" href="/admin/locations">Locations</a>
+    <a class="btn btn-brand" href="/admin/bookings">Bookings</a>
+    <a class="btn btn-brand" href="/admin/messages">Messages</a>
+  </div>
+</section>
+
+
+FILE: app\Views\admin\locations.php
+<section class="container py-5">
+  <h1 class="section-title">Manage Locations</h1>
+  <form action="/admin/locations/create" method="post" class="card border-0 shadow-sm p-3 mb-4"><?= csrf_input() ?><h2 class="h5">Create Location</h2><div class="row g-2"><div class="col-md-2"><input class="form-control" name="name" placeholder="Name" required></div><div class="col-md-4"><input class="form-control" name="address" placeholder="Address" required></div><div class="col-md-2"><input class="form-control" name="phone" placeholder="Phone" required></div><div class="col-md-2"><input class="form-control" name="opening_hours" placeholder="Opening hours" required></div><div class="col-md-1"><select name="status" class="form-select"><option>active</option><option>inactive</option></select></div><div class="col-md-1"><button class="btn btn-brand w-100">Add</button></div></div></form>
+  <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>ID</th><th>Name</th><th>Address</th><th>Phone</th><th>Hours</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+  <?php foreach ($locations as $l): ?>
+    <tr><form action="/admin/locations/update" method="post"><?= csrf_input() ?><td><?= (int)$l['id'] ?><input type="hidden" name="id" value="<?= (int)$l['id'] ?>"></td><td><input class="form-control form-control-sm" name="name" value="<?= e($l['name']) ?>" required></td><td><input class="form-control form-control-sm" name="address" value="<?= e($l['address']) ?>" required></td><td><input class="form-control form-control-sm" name="phone" value="<?= e($l['phone']) ?>" required></td><td><input class="form-control form-control-sm" name="opening_hours" value="<?= e($l['opening_hours']) ?>" required></td><td><select name="status" class="form-select form-select-sm"><option value="active" <?= $l['status']==='active'?'selected':'' ?>>active</option><option value="inactive" <?= $l['status']==='inactive'?'selected':'' ?>>inactive</option></select></td><td class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary">Save</button></form><form action="/admin/locations/delete" method="post"><?= csrf_input() ?><input type="hidden" name="id" value="<?= (int)$l['id'] ?>"><button class="btn btn-sm btn-outline-danger">Delete</button></form></td></tr>
+  <?php endforeach; ?>
+  </tbody></table></div>
+</section>
+
+
+FILE: app\Views\admin\messages.php
+<section class="container py-5">
+  <h1 class="section-title">Contact Messages</h1>
+  <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Subject</th><th>Message</th><th>Date</th><th>Action</th></tr></thead><tbody>
+  <?php foreach ($messages as $m): ?>
+    <tr><td><?= (int)$m['id'] ?></td><td><?= e($m['name']) ?></td><td><?= e($m['email']) ?></td><td><?= e($m['subject']) ?></td><td><?= e($m['message']) ?></td><td><?= e($m['created_at']) ?></td><td><form action="/admin/messages/delete" method="post"><?= csrf_input() ?><input type="hidden" name="id" value="<?= (int)$m['id'] ?>"><button class="btn btn-sm btn-outline-danger">Delete</button></form></td></tr>
+  <?php endforeach; ?>
+  </tbody></table></div>
+</section>
+
+
+FILE: app\Views\admin\plans.php
+<section class="container py-5">
+  <h1 class="section-title">Manage Membership Plans</h1>
+  <form action="/admin/plans/create" method="post" class="card border-0 shadow-sm p-3 mb-4">
+    <?= csrf_input() ?>
+    <h2 class="h5">Create Plan</h2>
+    <div class="row g-2">
+      <div class="col-md-2"><input class="form-control" name="name" placeholder="Name" required></div>
+      <div class="col-md-2"><input type="number" step="0.01" class="form-control" name="price" placeholder="Price" required></div>
+      <div class="col-md-2"><input type="number" class="form-control" name="duration_months" placeholder="Months" required></div>
+      <div class="col-md-4"><input class="form-control" name="description" placeholder="Description" required></div>
+      <div class="col-md-1"><select name="status" class="form-select"><option>active</option><option>inactive</option></select></div>
+      <div class="col-md-1"><button class="btn btn-brand w-100" type="submit">Add</button></div>
+    </div>
+  </form>
+  <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>ID</th><th>Name</th><th>Price</th><th>Months</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+  <?php foreach ($plans as $p): ?>
+    <tr>
+      <form action="/admin/plans/update" method="post"><?= csrf_input() ?><td><?= (int)$p['id'] ?><input type="hidden" name="id" value="<?= (int)$p['id'] ?>"></td><td><input class="form-control form-control-sm" name="name" value="<?= e($p['name']) ?>" required></td><td><input type="number" step="0.01" class="form-control form-control-sm" name="price" value="<?= e((string)$p['price']) ?>" required></td><td><input type="number" class="form-control form-control-sm" name="duration_months" value="<?= (int)$p['duration_months'] ?>" required></td><td><input class="form-control form-control-sm" name="description" value="<?= e($p['description']) ?>" required></td><td><select name="status" class="form-select form-select-sm"><option value="active" <?= $p['status']==='active'?'selected':'' ?>>active</option><option value="inactive" <?= $p['status']==='inactive'?'selected':'' ?>>inactive</option></select></td><td class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary" type="submit">Save</button></form><form action="/admin/plans/delete" method="post"><?= csrf_input() ?><input type="hidden" name="id" value="<?= (int)$p['id'] ?>"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form></td>
+    </tr>
+  <?php endforeach; ?>
+  </tbody></table></div>
+</section>
+
+
+FILE: app\Views\admin\trainers.php
+<section class="container py-5">
+  <h1 class="section-title">Manage Trainers</h1>
+  <form action="/admin/trainers/create" method="post" class="card border-0 shadow-sm p-3 mb-4"><?= csrf_input() ?><h2 class="h5">Create Trainer</h2><div class="row g-2"><div class="col-md-2"><input class="form-control" name="name" placeholder="Name" required></div><div class="col-md-2"><input class="form-control" name="specialty" placeholder="Specialty" required></div><div class="col-md-4"><input class="form-control" name="bio" placeholder="Bio" required></div><div class="col-md-2"><input class="form-control" name="image_path" placeholder="Image path"></div><div class="col-md-1"><select name="status" class="form-select"><option>active</option><option>inactive</option></select></div><div class="col-md-1"><button class="btn btn-brand w-100" type="submit">Add</button></div></div></form>
+  <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>ID</th><th>Name</th><th>Specialty</th><th>Bio</th><th>Image</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+  <?php foreach ($trainers as $t): ?>
+    <tr><form action="/admin/trainers/update" method="post"><?= csrf_input() ?><td><?= (int)$t['id'] ?><input type="hidden" name="id" value="<?= (int)$t['id'] ?>"></td><td><input class="form-control form-control-sm" name="name" value="<?= e($t['name']) ?>" required></td><td><input class="form-control form-control-sm" name="specialty" value="<?= e($t['specialty']) ?>" required></td><td><input class="form-control form-control-sm" name="bio" value="<?= e($t['bio']) ?>" required></td><td><input class="form-control form-control-sm" name="image_path" value="<?= e($t['image_path']) ?>"></td><td><select name="status" class="form-select form-select-sm"><option value="active" <?= $t['status']==='active'?'selected':'' ?>>active</option><option value="inactive" <?= $t['status']==='inactive'?'selected':'' ?>>inactive</option></select></td><td class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary" type="submit">Save</button></form><form action="/admin/trainers/delete" method="post"><?= csrf_input() ?><input type="hidden" name="id" value="<?= (int)$t['id'] ?>"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form></td></tr>
+  <?php endforeach; ?>
+  </tbody></table></div>
+</section>
+
+
+FILE: app\Views\admin\users.php
+<section class="container py-5">
+  <h1 class="section-title">Manage Users</h1>
+  <form action="/admin/users/create" method="post" class="card border-0 shadow-sm p-3 mb-4">
+    <?= csrf_input() ?>
+    <h2 class="h5">Create User</h2>
+    <div class="row g-2">
+      <div class="col-md-3"><input class="form-control" name="full_name" placeholder="Full Name" required></div>
+      <div class="col-md-3"><input type="email" class="form-control" name="email" placeholder="Email" required></div>
+      <div class="col-md-2"><input class="form-control" name="phone" placeholder="Phone"></div>
+      <div class="col-md-2"><input type="password" class="form-control" name="password" placeholder="Password" required></div>
+      <div class="col-md-1"><select name="role_id" class="form-select"><option value="2">Member</option><option value="1">Admin</option></select></div>
+      <div class="col-md-1"><button class="btn btn-brand w-100" type="submit">Add</button></div>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-sm align-middle">
+      <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Actions</th></tr></thead>
+      <tbody>
+      <?php foreach ($users as $u): ?>
+        <tr>
+          <form action="/admin/users/update" method="post">
+            <?= csrf_input() ?>
+            <td><?= (int)$u['id'] ?><input type="hidden" name="id" value="<?= (int)$u['id'] ?>"></td>
+            <td><input class="form-control form-control-sm" name="full_name" value="<?= e($u['full_name']) ?>" required></td>
+            <td><input class="form-control form-control-sm" name="email" value="<?= e($u['email']) ?>" required></td>
+            <td><input class="form-control form-control-sm" name="phone" value="<?= e($u['phone']) ?>"></td>
+            <td><select name="role_id" class="form-select form-select-sm"><option value="1" <?= $u['role_name']==='admin'?'selected':'' ?>>Admin</option><option value="2" <?= $u['role_name']==='member'?'selected':'' ?>>Member</option></select></td>
+            <td class="d-flex gap-1">
+              <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
+          </form>
+          <form action="/admin/users/delete" method="post">
+            <?= csrf_input() ?>
+            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+            <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+          </form>
+            </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+FILE: app\Views\layouts\main.php
+<?php $app = config('app'); ?>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= e($title ?? '') ?> | <?= e($app['name']) ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="/assets/css/styles.css">
+</head>
+<body>
+<?php partial('navbar'); ?>
+<main>
+    <?php partial('alerts'); ?>
+    <?= $content ?>
+</main>
+<?php partial('footer'); ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<script src="/assets/js/main.js"></script>
+</body>
+</html>
+
+
+FILE: app\Views\pages\about.php
+<section class="container py-5">
+  <h1 class="section-title">About PulsePoint Fitness</h1>
+  <p>PulsePoint Fitness is a fictional high-performance gym brand built for this university project. Our mission is to help members improve strength, endurance, and confidence through structured training and expert coaching.</p>
+  <div class="row g-3 mt-2">
+    <div class="col-md-4"><div class="card h-100 border-0 shadow-sm p-3"><h2 class="h5">Our Vision</h2><p class="mb-0">Build a motivating community where everyone can train at their own pace and keep progressing.</p></div></div>
+    <div class="col-md-4"><div class="card h-100 border-0 shadow-sm p-3"><h2 class="h5">Our Training Style</h2><p class="mb-0">Balanced strength, conditioning, recovery, and accountability programs for beginners and advanced members.</p></div></div>
+    <div class="col-md-4"><div class="card h-100 border-0 shadow-sm p-3"><h2 class="h5">Our Culture</h2><p class="mb-0">Inclusive, disciplined, and goal-oriented. We celebrate consistency and measurable progress.</p></div></div>
+  </div>
+</section>
+
+
+FILE: app\Views\pages\bookings.php
+<section class="container py-5">
+  <h1 class="section-title">My Bookings</h1>
+  <div class="card border-0 shadow-sm p-3 mb-4">
+    <h2 class="h5">Book a Class</h2>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Class</th><th>Date</th><th>Trainer</th><th>Location</th><th></th></tr></thead>
+        <tbody>
+        <?php foreach ($classes as $class): ?>
+          <tr>
+            <td><?= e($class['title']) ?></td>
+            <td><?= e($class['class_date']) ?> <?= e(substr($class['start_time'],0,5)) ?></td>
+            <td><?= e($class['trainer_name']) ?></td>
+            <td><?= e($class['location_name']) ?></td>
+            <td>
+              <form action="/member/bookings/book" method="post">
+                <?= csrf_input() ?>
+                <input type="hidden" name="class_id" value="<?= (int)$class['id'] ?>">
+                <button class="btn btn-sm btn-brand" type="submit">Book</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm p-3">
+    <h2 class="h5">My Booking History</h2>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Class</th><th>Date</th><th>Location</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        <?php foreach ($bookings as $booking): ?>
+          <tr>
+            <td><?= e($booking['title']) ?></td>
+            <td><?= e($booking['class_date']) ?> <?= e(substr($booking['start_time'],0,5)) ?></td>
+            <td><?= e($booking['location_name']) ?></td>
+            <td><?= e($booking['booking_status']) ?></td>
+            <td>
+              <?php if ($booking['booking_status'] === 'booked'): ?>
+                <form action="/member/bookings/cancel" method="post">
+                  <?= csrf_input() ?>
+                  <input type="hidden" name="booking_id" value="<?= (int)$booking['id'] ?>">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">Cancel</button>
+                </form>
+              <?php endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+FILE: app\Views\pages\contact.php
+<section class="container py-5">
+  <h1 class="section-title">Contact Us</h1>
+  <form action="/contact" method="post" class="card border-0 shadow-sm p-4" novalidate>
+    <?= csrf_input() ?>
+    <div class="row g-3">
+      <div class="col-md-6"><label for="name" class="form-label">Name</label><input id="name" name="name" class="form-control" value="<?= old('name') ?>" required></div>
+      <div class="col-md-6"><label for="email" class="form-label">Email</label><input id="email" name="email" type="email" class="form-control" value="<?= old('email') ?>" required></div>
+      <div class="col-12"><label for="subject" class="form-label">Subject</label><input id="subject" name="subject" class="form-control" value="<?= old('subject') ?>" required></div>
+      <div class="col-12"><label for="message" class="form-label">Message</label><textarea id="message" name="message" rows="5" class="form-control" required><?= old('message') ?></textarea></div>
+    </div>
+    <button class="btn btn-brand mt-3" type="submit">Send Message</button>
+  </form>
+</section>
+<?php clear_old(); ?>
+
+
+FILE: app\Views\pages\faq.php
+<section class="container py-5">
+  <h1 class="section-title">Frequently Asked Questions</h1>
+  <div class="accordion" id="faq">
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#q1">Can I pause my membership?</button></h2><div id="q1" class="accordion-collapse collapse show" data-bs-parent="#faq"><div class="accordion-body">This demo system supports renew and cancel flows. Pause can be an optional extension.</div></div></div>
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#q2">Do I need to book classes in advance?</button></h2><div id="q2" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">Yes. Members can reserve class slots on the bookings dashboard.</div></div></div>
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#q3">Can beginners join?</button></h2><div id="q3" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">Absolutely. Programs are structured for all levels.</div></div></div>
+  </div>
+</section>
+
+
+FILE: app\Views\pages\home.php
+<section class="hero-section text-white">
+  <div class="container py-5">
+    <div class="row align-items-center g-4 py-5">
+      <div class="col-lg-7">
+        <p class="text-uppercase small fw-semibold mb-2">Train Better, Live Stronger</p>
+        <h1 class="display-4 fw-bold mb-3">Push your limits at PulsePoint Fitness</h1>
+        <p class="lead mb-4">Join a high-energy gym community with expert coaching, premium facilities, and flexible plans.</p>
+        <div class="d-flex gap-2 flex-wrap">
+          <a href="/register" class="btn btn-brand btn-lg">Start Membership</a>
+          <a href="/schedule" class="btn btn-outline-light btn-lg">View Classes</a>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="glass-panel p-4">
+          <h2 class="h4">Why Members Choose Us</h2>
+          <ul class="mb-0">
+            <li>24/7 gym access options</li>
+            <li>Certified strength and conditioning coaches</li>
+            <li>Group classes for all levels</li>
+            <li>Multiple locations across the city</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="container py-5">
+  <h2 class="section-title">Membership Highlights</h2>
+  <div class="row g-3">
+    <?php foreach ($plans as $plan): ?>
+      <div class="col-md-4">
+        <article class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <h3 class="h5"><?= e($plan['name']) ?></h3>
+            <p class="display-6 fw-bold mb-2">$<?= e(number_format((float) $plan['price'], 2)) ?></p>
+            <p><?= e($plan['duration_months']) ?> month(s)</p>
+            <p><?= e($plan['description']) ?></p>
+          </div>
+        </article>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</section>
+
+<section class="container pb-5">
+  <h2 class="section-title">Featured Classes</h2>
+  <div class="row g-3">
+    <?php foreach ($classes as $class): ?>
+      <div class="col-md-4">
+        <article class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <h3 class="h5"><?= e($class['title']) ?></h3>
+            <p class="mb-1"><strong>Date:</strong> <?= e($class['class_date']) ?></p>
+            <p class="mb-1"><strong>Time:</strong> <?= e(substr($class['start_time'],0,5)) ?> - <?= e(substr($class['end_time'],0,5)) ?></p>
+            <p class="mb-1"><strong>Trainer:</strong> <?= e($class['trainer_name']) ?></p>
+            <p class="mb-0"><strong>Spots:</strong> <?= max(0, (int)$class['capacity'] - (int)$class['booked_count']) ?></p>
+          </div>
+        </article>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</section>
+
+<section class="bg-light py-5">
+  <div class="container">
+    <h2 class="section-title">Featured Trainers</h2>
+    <div class="row g-3">
+      <?php foreach ($trainers as $trainer): ?>
+        <div class="col-md-4">
+          <article class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+              <h3 class="h5"><?= e($trainer['name']) ?></h3>
+              <p class="text-muted mb-2"><?= e($trainer['specialty']) ?></p>
+              <p class="mb-0"><?= e($trainer['bio']) ?></p>
+            </div>
+          </article>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<section class="container py-5">
+  <h2 class="section-title">Location Snapshot</h2>
+  <div class="row g-3">
+    <?php foreach ($locations as $location): ?>
+      <div class="col-md-6">
+        <article class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <h3 class="h5"><?= e($location['name']) ?></h3>
+            <p class="mb-1"><?= e($location['address']) ?></p>
+            <p class="mb-1">Phone: <?= e($location['phone']) ?></p>
+            <p class="mb-0">Hours: <?= e($location['opening_hours']) ?></p>
+          </div>
+        </article>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</section>
+
+<section class="container pb-5">
+  <h2 class="section-title">Member Testimonials</h2>
+  <div class="row g-3">
+    <div class="col-md-4"><blockquote class="card p-3 h-100 border-0 shadow-sm">"I transformed my strength in 4 months." <cite class="d-block mt-2">- Amira, Member</cite></blockquote></div>
+    <div class="col-md-4"><blockquote class="card p-3 h-100 border-0 shadow-sm">"The trainers are focused and supportive." <cite class="d-block mt-2">- Joshua, Member</cite></blockquote></div>
+    <div class="col-md-4"><blockquote class="card p-3 h-100 border-0 shadow-sm">"Clean facilities and flexible class schedule." <cite class="d-block mt-2">- Priya, Member</cite></blockquote></div>
+  </div>
+</section>
+
+
+FILE: app\Views\pages\locations.php
+<section class="container py-5">
+  <h1 class="section-title">Gym Locations</h1>
+  <div class="row g-3">
+    <?php foreach ($locations as $location): ?>
+      <div class="col-md-6">
+        <article class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <h2 class="h5"><?= e($location['name']) ?></h2>
+            <p class="mb-1"><?= e($location['address']) ?></p>
+            <p class="mb-1">Phone: <?= e($location['phone']) ?></p>
+            <p class="mb-0">Hours: <?= e($location['opening_hours']) ?></p>
+          </div>
+        </article>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</section>
+
+
+FILE: app\Views\pages\login.php
+<section class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-5">
+      <form action="<?= !empty($adminMode) ? '/admin/login' : '/login' ?>" method="post" class="card border-0 shadow-sm p-4" novalidate>
+        <?= csrf_input() ?>
+        <h1 class="h3 mb-3"><?= e($title ?? 'Login') ?></h1>
+        <label for="email" class="form-label">Email</label>
+        <input id="email" name="email" type="email" class="form-control mb-2" value="<?= old('email') ?>" required>
+        <label for="password" class="form-label">Password</label>
+        <input id="password" name="password" type="password" class="form-control mb-3" required>
+        <button class="btn btn-brand w-100" type="submit">Login</button>
+        <?php if (empty($adminMode)): ?>
+          <p class="mt-3 mb-1">No account? <a href="/register">Register here</a></p>
+          <p class="mb-0 small"><a href="/admin/login">Admin login</a></p>
+        <?php endif; ?>
+      </form>
+    </div>
+  </div>
+</section>
+<?php clear_old(); ?>
+
+
+FILE: app\Views\pages\member_dashboard.php
+<section class="container py-5">
+  <h1 class="section-title">Member Dashboard</h1>
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm p-3 h-100">
+        <h2 class="h5">Membership Status</h2>
+        <?php if ($membership): ?>
+          <p class="mb-1"><strong>Plan:</strong> <?= e($membership['plan_name']) ?></p>
+          <p class="mb-1"><strong>Status:</strong> <?= e($membership['status']) ?></p>
+          <p class="mb-1"><strong>Start:</strong> <?= e($membership['start_date']) ?></p>
+          <p class="mb-2"><strong>End:</strong> <?= e($membership['end_date']) ?></p>
+          <form action="/member/membership/renew" method="post" class="d-inline">
+            <?= csrf_input() ?>
+            <input type="hidden" name="plan_id" value="<?= (int) $membership['plan_id'] ?>">
+            <button class="btn btn-sm btn-brand" type="submit">Renew</button>
+          </form>
+          <?php if ($membership['status'] === 'active'): ?>
+            <form action="/member/membership/cancel" method="post" class="d-inline ms-2">
+              <?= csrf_input() ?>
+              <input type="hidden" name="membership_id" value="<?= (int) $membership['id'] ?>">
+              <button class="btn btn-sm btn-outline-danger" type="submit">Cancel</button>
+            </form>
+          <?php endif; ?>
+        <?php else: ?>
+          <p>No active membership.</p>
+          <a class="btn btn-brand btn-sm" href="/plans">Subscribe Now</a>
+        <?php endif; ?>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm p-3 h-100">
+        <h2 class="h5">Quick Actions</h2>
+        <div class="d-grid gap-2">
+          <a class="btn btn-outline-primary" href="/member/profile">Update Profile</a>
+          <a class="btn btn-outline-primary" href="/member/bookings">Manage Bookings</a>
+          <a class="btn btn-outline-primary" href="/schedule">Browse Class Schedule</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm p-3 mb-4">
+    <h2 class="h5">Membership History</h2>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Plan</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+        <tbody>
+          <?php foreach ($history as $item): ?>
+            <tr><td><?= e($item['plan_name']) ?></td><td><?= e($item['start_date']) ?></td><td><?= e($item['end_date']) ?></td><td><?= e($item['status']) ?></td></tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm p-3">
+    <h2 class="h5">Upcoming Classes</h2>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Class</th><th>Date</th><th>Trainer</th><th>Location</th><th></th></tr></thead>
+        <tbody>
+          <?php foreach ($classes as $class): ?>
+            <tr>
+              <td><?= e($class['title']) ?></td>
+              <td><?= e($class['class_date']) ?> <?= e(substr($class['start_time'],0,5)) ?></td>
+              <td><?= e($class['trainer_name']) ?></td>
+              <td><?= e($class['location_name']) ?></td>
+              <td>
+                <form action="/member/bookings/book" method="post">
+                  <?= csrf_input() ?>
+                  <input type="hidden" name="class_id" value="<?= (int)$class['id'] ?>">
+                  <button class="btn btn-sm btn-brand" type="submit">Book</button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+FILE: app\Views\pages\plans.php
+<section class="container py-5">
+  <h1 class="section-title">Membership Plans</h1>
+  <p class="mb-4">Choose the package that matches your training goals.</p>
+  <div class="row g-3">
+    <?php foreach ($plans as $plan): ?>
+      <div class="col-md-4">
+        <article class="card h-100 border-0 shadow-sm">
+          <div class="card-body d-flex flex-column">
+            <h2 class="h5"><?= e($plan['name']) ?></h2>
+            <p class="display-6 fw-bold">$<?= e(number_format((float) $plan['price'], 2)) ?></p>
+            <p><?= e($plan['duration_months']) ?> month(s)</p>
+            <p class="flex-grow-1"><?= e($plan['description']) ?></p>
+            <?php if (current_user() && !is_admin()): ?>
+              <form action="/member/membership/subscribe" method="post">
+                <?= csrf_input() ?>
+                <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
+                <button class="btn btn-brand w-100" type="submit">Subscribe</button>
+              </form>
+            <?php else: ?>
+              <a href="/register" class="btn btn-brand w-100">Get Started</a>
+            <?php endif; ?>
+          </div>
+        </article>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</section>
+
+
+FILE: app\Views\pages\profile.php
+<section class="container py-5">
+  <h1 class="section-title">My Profile</h1>
+  <div class="row">
+    <div class="col-lg-6">
+      <form action="/member/profile" method="post" class="card border-0 shadow-sm p-4">
+        <?= csrf_input() ?>
+        <label for="full_name" class="form-label">Full Name</label>
+        <input id="full_name" name="full_name" class="form-control mb-3" value="<?= e($user['full_name']) ?>" required>
+        <label for="email" class="form-label">Email</label>
+        <input id="email" class="form-control mb-3" value="<?= e($user['email']) ?>" disabled>
+        <label for="phone" class="form-label">Phone</label>
+        <input id="phone" name="phone" class="form-control mb-3" value="<?= e($user['phone']) ?>">
+        <button class="btn btn-brand" type="submit">Save Changes</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+
+FILE: app\Views\pages\register.php
+<section class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-5">
+      <form action="/register" method="post" class="card border-0 shadow-sm p-4" novalidate>
+        <?= csrf_input() ?>
+        <h1 class="h3 mb-3">Create Your Account</h1>
+        <label for="full_name" class="form-label">Full Name</label>
+        <input id="full_name" name="full_name" class="form-control mb-2" value="<?= old('full_name') ?>" required>
+        <label for="email" class="form-label">Email</label>
+        <input id="email" name="email" type="email" class="form-control mb-2" value="<?= old('email') ?>" required>
+        <label for="phone" class="form-label">Phone</label>
+        <input id="phone" name="phone" class="form-control mb-2" value="<?= old('phone') ?>">
+        <label for="password" class="form-label">Password</label>
+        <input id="password" name="password" type="password" class="form-control mb-2" required>
+        <label for="password_confirmation" class="form-label">Confirm Password</label>
+        <input id="password_confirmation" name="password_confirmation" type="password" class="form-control mb-3" required>
+        <button class="btn btn-brand w-100" type="submit">Register</button>
+        <p class="mt-3 mb-0">Already a member? <a href="/login">Login</a></p>
+      </form>
+    </div>
+  </div>
+</section>
+<?php clear_old(); ?>
+
+
+FILE: app\Views\pages\schedule.php
+<section class="container py-5">
+  <h1 class="section-title">Class Schedule</h1>
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead><tr><th>Class</th><th>Date</th><th>Time</th><th>Trainer</th><th>Location</th><th>Availability</th></tr></thead>
+      <tbody>
+      <?php foreach ($classes as $class): ?>
+        <tr>
+          <td><?= e($class['title']) ?></td>
+          <td><?= e($class['class_date']) ?></td>
+          <td><?= e(substr($class['start_time'],0,5)) ?> - <?= e(substr($class['end_time'],0,5)) ?></td>
+          <td><?= e($class['trainer_name']) ?></td>
+          <td><?= e($class['location_name']) ?></td>
+          <td><?= max(0, (int)$class['capacity'] - (int)$class['booked_count']) ?> / <?= (int)$class['capacity'] ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+FILE: app\Views\pages\trainers.php
+<section class="container py-5">
+  <h1 class="section-title">Meet Our Trainers</h1>
+  <div class="row g-3">
+    <?php foreach ($trainers as $trainer): ?>
+      <div class="col-md-4">
+        <article class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <h2 class="h5"><?= e($trainer['name']) ?></h2>
+            <p class="text-muted"><?= e($trainer['specialty']) ?></p>
+            <p><?= e($trainer['bio']) ?></p>
+          </div>
+        </article>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</section>
+
+
+FILE: app\Views\partials\alerts.php
+<div class="container mt-3">
+  <?php if ($msg = flash('success')): ?>
+    <div class="alert alert-success" role="alert"><?= e($msg) ?></div>
+  <?php endif; ?>
+  <?php if ($msg = flash('error')): ?>
+    <div class="alert alert-danger" role="alert"><?= e($msg) ?></div>
+  <?php endif; ?>
+</div>
+
+
+FILE: app\Views\partials\footer.php
+<footer class="pp-footer mt-5 py-4">
+  <div class="container d-flex flex-column flex-md-row justify-content-between gap-3">
+    <p class="mb-0">&copy; <?= date('Y') ?> PulsePoint Fitness. Fictional student project.</p>
+    <div class="d-flex gap-3">
+      <a href="/about" class="link-light">About</a>
+      <a href="/plans" class="link-light">Plans</a>
+      <a href="/contact" class="link-light">Contact</a>
+    </div>
+  </div>
+</footer>
+
+
+FILE: app\Views\partials\navbar.php
+<?php $user = current_user(); ?>
+<nav class="navbar navbar-expand-lg pp-navbar sticky-top">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="/">PulsePoint Fitness</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+        <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+        <li class="nav-item"><a class="nav-link" href="/plans">Plans</a></li>
+        <li class="nav-item"><a class="nav-link" href="/trainers">Trainers</a></li>
+        <li class="nav-item"><a class="nav-link" href="/schedule">Classes</a></li>
+        <li class="nav-item"><a class="nav-link" href="/locations">Locations</a></li>
+        <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+        <li class="nav-item"><a class="nav-link" href="/faq">FAQ</a></li>
+        <?php if (!$user): ?>
+          <li class="nav-item"><a class="btn btn-outline-light btn-sm" href="/login">Member Login</a></li>
+          <li class="nav-item"><a class="btn btn-brand btn-sm" href="/register">Join Now</a></li>
+        <?php else: ?>
+          <?php if (($user['role_name'] ?? '') === 'admin'): ?>
+            <li class="nav-item"><a class="btn btn-outline-light btn-sm" href="/admin/dashboard">Admin</a></li>
+          <?php else: ?>
+            <li class="nav-item"><a class="btn btn-outline-light btn-sm" href="/member/dashboard">Dashboard</a></li>
+          <?php endif; ?>
+          <li class="nav-item">
+            <form action="/logout" method="post" class="d-inline">
+              <?= csrf_input() ?>
+              <button class="btn btn-sm btn-danger" type="submit">Logout</button>
+            </form>
+          </li>
+        <?php endif; ?>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+
+FILE: bootstrap.php
+<?php
+
+declare(strict_types=1);
+
+spl_autoload_register(function (string $class): void {
+    $prefix = 'App\\';
+    $baseDir = __DIR__ . '/app/';
+
+    if (strncmp($prefix, $class, strlen($prefix)) !== 0) {
+        return;
+    }
+
+    $relativeClass = substr($class, strlen($prefix));
+    $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});
+
+require_once __DIR__ . '/app/Core/helpers.php';
+
+
+FILE: config\app.php
+<?php
+
+declare(strict_types=1);
+
+return [
+    'name' => getenv('APP_NAME') ?: 'PulsePoint Fitness',
+    'url' => getenv('APP_URL') ?: 'http://localhost:8000',
+    'env' => getenv('APP_ENV') ?: 'development',
+    'debug' => filter_var(getenv('APP_DEBUG') ?: 'true', FILTER_VALIDATE_BOOL),
+];
+
+
+FILE: config\database.php
+<?php
+
+declare(strict_types=1);
+
+return [
+    'host' => getenv('DB_HOST') ?: '127.0.0.1',
+    'port' => (int) (getenv('DB_PORT') ?: 3306),
+    'name' => getenv('DB_NAME') ?: 'pulsepoint_fitness',
+    'user' => getenv('DB_USER') ?: 'root',
+    'pass' => getenv('DB_PASS') ?: '',
+    'charset' => 'utf8mb4',
+];
+
+
+FILE: config\routes.php
+<?php
+
+declare(strict_types=1);
+
+return [
+    ['GET', '/', 'HomeController', 'home', 'public'],
+    ['GET', '/about', 'HomeController', 'about', 'public'],
+    ['GET', '/plans', 'HomeController', 'plans', 'public'],
+    ['GET', '/trainers', 'HomeController', 'trainers', 'public'],
+    ['GET', '/schedule', 'HomeController', 'schedule', 'public'],
+    ['GET', '/locations', 'HomeController', 'locations', 'public'],
+    ['GET', '/contact', 'HomeController', 'contact', 'public'],
+    ['POST', '/contact', 'HomeController', 'submitContact', 'public'],
+    ['GET', '/faq', 'HomeController', 'faq', 'public'],
+
+    ['GET', '/register', 'AuthController', 'showRegister', 'guest'],
+    ['POST', '/register', 'AuthController', 'register', 'guest'],
+    ['GET', '/login', 'AuthController', 'showLogin', 'guest'],
+    ['POST', '/login', 'AuthController', 'login', 'guest'],
+    ['GET', '/admin/login', 'AuthController', 'showAdminLogin', 'guest'],
+    ['POST', '/admin/login', 'AuthController', 'adminLogin', 'guest'],
+    ['POST', '/logout', 'AuthController', 'logout', 'auth'],
+
+    ['GET', '/member/dashboard', 'MemberController', 'dashboard', 'auth'],
+    ['GET', '/member/profile', 'MemberController', 'profile', 'auth'],
+    ['POST', '/member/profile', 'MemberController', 'updateProfile', 'auth'],
+    ['POST', '/member/membership/subscribe', 'MemberController', 'subscribe', 'auth'],
+    ['POST', '/member/membership/renew', 'MemberController', 'renew', 'auth'],
+    ['POST', '/member/membership/cancel', 'MemberController', 'cancelMembership', 'auth'],
+    ['GET', '/member/bookings', 'MemberController', 'bookings', 'auth'],
+    ['POST', '/member/bookings/book', 'MemberController', 'bookClass', 'auth'],
+    ['POST', '/member/bookings/cancel', 'MemberController', 'cancelBooking', 'auth'],
+
+    ['GET', '/admin/dashboard', 'AdminController', 'dashboard', 'admin'],
+    ['GET', '/admin/users', 'AdminController', 'users', 'admin'],
+    ['POST', '/admin/users/create', 'AdminController', 'createUser', 'admin'],
+    ['POST', '/admin/users/update', 'AdminController', 'updateUser', 'admin'],
+    ['POST', '/admin/users/delete', 'AdminController', 'deleteUser', 'admin'],
+
+    ['GET', '/admin/plans', 'AdminController', 'plans', 'admin'],
+    ['POST', '/admin/plans/create', 'AdminController', 'createPlan', 'admin'],
+    ['POST', '/admin/plans/update', 'AdminController', 'updatePlan', 'admin'],
+    ['POST', '/admin/plans/delete', 'AdminController', 'deletePlan', 'admin'],
+
+    ['GET', '/admin/trainers', 'AdminController', 'trainers', 'admin'],
+    ['POST', '/admin/trainers/create', 'AdminController', 'createTrainer', 'admin'],
+    ['POST', '/admin/trainers/update', 'AdminController', 'updateTrainer', 'admin'],
+    ['POST', '/admin/trainers/delete', 'AdminController', 'deleteTrainer', 'admin'],
+
+    ['GET', '/admin/classes', 'AdminController', 'classes', 'admin'],
+    ['POST', '/admin/classes/create', 'AdminController', 'createClass', 'admin'],
+    ['POST', '/admin/classes/update', 'AdminController', 'updateClass', 'admin'],
+    ['POST', '/admin/classes/delete', 'AdminController', 'deleteClass', 'admin'],
+
+    ['GET', '/admin/locations', 'AdminController', 'locations', 'admin'],
+    ['POST', '/admin/locations/create', 'AdminController', 'createLocation', 'admin'],
+    ['POST', '/admin/locations/update', 'AdminController', 'updateLocation', 'admin'],
+    ['POST', '/admin/locations/delete', 'AdminController', 'deleteLocation', 'admin'],
+
+    ['GET', '/admin/bookings', 'AdminController', 'bookings', 'admin'],
+    ['POST', '/admin/bookings/update', 'AdminController', 'updateBooking', 'admin'],
+    ['POST', '/admin/bookings/delete', 'AdminController', 'deleteBooking', 'admin'],
+
+    ['GET', '/admin/messages', 'AdminController', 'messages', 'admin'],
+    ['POST', '/admin/messages/delete', 'AdminController', 'deleteMessage', 'admin'],
+];
+
+
+FILE: database\migrations\001_init_schema.sql
+CREATE DATABASE IF NOT EXISTS pulsepoint_fitness CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE pulsepoint_fitness;
+
+CREATE TABLE roles (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(20) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  role_id INT NOT NULL,
+  full_name VARCHAR(120) NOT NULL,
+  email VARCHAR(150) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  phone VARCHAR(30) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id)
+);
+
+CREATE TABLE membership_plans (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  duration_months INT NOT NULL,
+  description TEXT NOT NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE memberships (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  plan_id INT NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  status ENUM('active','expired','cancelled') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_memberships_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_memberships_plan FOREIGN KEY (plan_id) REFERENCES membership_plans(id)
+);
+
+CREATE TABLE trainers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  specialty VARCHAR(120) NOT NULL,
+  bio TEXT NOT NULL,
+  image_path VARCHAR(255) DEFAULT NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE gym_locations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  phone VARCHAR(30) NOT NULL,
+  opening_hours VARCHAR(120) NOT NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE classes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  trainer_id INT NOT NULL,
+  location_id INT NOT NULL,
+  title VARCHAR(120) NOT NULL,
+  description TEXT NOT NULL,
+  class_date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  capacity INT NOT NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_classes_trainer FOREIGN KEY (trainer_id) REFERENCES trainers(id),
+  CONSTRAINT fk_classes_location FOREIGN KEY (location_id) REFERENCES gym_locations(id)
+);
+
+CREATE TABLE bookings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  class_id INT NOT NULL,
+  booking_status ENUM('booked','cancelled','completed') NOT NULL DEFAULT 'booked',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_bookings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_bookings_class FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_active_booking (user_id, class_id, booking_status)
+);
+
+CREATE TABLE contact_messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  email VARCHAR(150) NOT NULL,
+  subject VARCHAR(150) NOT NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+FILE: database\seeds\001_seed_data.sql
+USE pulsepoint_fitness;
+
+INSERT INTO roles (id, name) VALUES
+(1, 'admin'),
+(2, 'member');
+
+INSERT INTO users (role_id, full_name, email, password_hash, phone) VALUES
+(1, 'System Admin', 'admin@pulsepoint.test', '$2b$12$.bExm4I/cenZ2K0JxL0nDuytbXdEu7xtWQcJcbbxPqSGF7EGeA74m', '+65 9000 1001'),
+(2, 'Jamie Member', 'member@pulsepoint.test', '$2b$12$Z1MB2rPZ1A7QpEpcFCt.nOSnxnJ9FroNsnsqvBNSN72QhFoSBz5r.', '+65 9000 2002');
+
+INSERT INTO membership_plans (name, price, duration_months, description, status) VALUES
+('Starter Flex', 59.00, 1, 'Access to gym floor and basic classes.', 'active'),
+('Performance Plus', 149.00, 3, 'Unlimited classes plus trainer consultations.', 'active'),
+('Elite Annual', 499.00, 12, 'Best value with full access and priority booking.', 'active');
+
+INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES
+(2, 2, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 3 MONTH), 'active');
+
+INSERT INTO trainers (name, specialty, bio, image_path, status) VALUES
+('Aiden Cruz', 'Strength & Conditioning', 'Focuses on progressive overload and athletic performance.', '', 'active'),
+('Maya Tan', 'HIIT & Fat Loss', 'Designs high-intensity circuits for endurance and body composition.', '', 'active'),
+('Noah Lim', 'Mobility & Recovery', 'Helps members improve movement quality and prevent injuries.', '', 'active');
+
+INSERT INTO gym_locations (name, address, phone, opening_hours, status) VALUES
+('PulsePoint Downtown', '101 Core Street, Central City', '+65 6123 1111', '6:00 AM - 11:00 PM', 'active'),
+('PulsePoint Riverside', '88 River Lane, West District', '+65 6123 2222', '24 Hours', 'active');
+
+INSERT INTO classes (trainer_id, location_id, title, description, class_date, start_time, end_time, capacity, status) VALUES
+(1, 1, 'Power Lift Fundamentals', 'Technique-first barbell session.', DATE_ADD(CURDATE(), INTERVAL 1 DAY), '18:00:00', '19:00:00', 20, 'active'),
+(2, 2, 'Pulse HIIT', 'Fast-paced conditioning workout.', DATE_ADD(CURDATE(), INTERVAL 2 DAY), '19:00:00', '20:00:00', 25, 'active'),
+(3, 1, 'Mobility Reset', 'Guided mobility and recovery drills.', DATE_ADD(CURDATE(), INTERVAL 3 DAY), '17:00:00', '18:00:00', 18, 'active');
+
+INSERT INTO bookings (user_id, class_id, booking_status) VALUES
+(2, 1, 'booked'),
+(2, 2, 'booked');
+
+INSERT INTO contact_messages (name, email, subject, message) VALUES
+('Taylor Lee', 'taylor@example.com', 'Corporate Membership', 'Can your team provide a company wellness package?');
+
+
+FILE: docs\PROJECT_OVERVIEW.md
+# Documentation
+
+## Security Controls Implemented
+
+- Password hashing with `password_hash` and verification with `password_verify`
+- PDO prepared statements for all DB operations
+- CSRF tokens on state-changing forms
+- Session-based authentication and role checks
+- Output escaping with `htmlspecialchars`
+- Basic server-side validation and sanitization
+
+## CRUD Matrix
+
+- Users: Admin create/read/update/delete
+- Membership plans: Admin create/read/update/delete
+- Membership records: Member create (subscribe/renew), update (cancel), read history
+- Trainers: Admin create/read/update/delete
+- Classes: Admin create/read/update/delete
+- Bookings: Member create/update(cancel)/read, Admin read/update/delete
+- Gym locations: Admin create/read/update/delete
+- Contact messages: Public create, Admin read/delete
+
+
+FILE: docs\README.md
+# Docs
+
+- `PROJECT_OVERVIEW.md`: architecture summary, security controls, and CRUD mapping.
+
+
+FILE: public\assets\css\styles.css
+:root {
+  --pp-primary: #d9480f;
+  --pp-primary-dark: #b23c0a;
+  --pp-dark: #111827;
+  --pp-accent: #22c55e;
+  --pp-bg-soft: #f3f4f6;
+  --pp-text: #111827;
+  --pp-muted: #6b7280;
+  --pp-radius: 1rem;
+}
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--pp-text);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.pp-navbar {
+  background: linear-gradient(90deg, var(--pp-dark), #1f2937);
+}
+
+.pp-navbar .navbar-brand,
+.pp-navbar .nav-link {
+  color: #f8fafc;
+}
+
+.pp-navbar .nav-link:hover,
+.pp-navbar .nav-link:focus {
+  color: #fdba74;
+}
+
+.hero-section {
+  background: radial-gradient(circle at top right, #fb923c, var(--pp-primary-dark) 45%, var(--pp-dark));
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--pp-radius);
+  backdrop-filter: blur(3px);
+}
+
+.btn-brand {
+  background: var(--pp-primary);
+  color: #fff;
+  border: none;
+}
+
+.btn-brand:hover,
+.btn-brand:focus {
+  background: var(--pp-primary-dark);
+  color: #fff;
+}
+
+.section-title {
+  font-size: clamp(1.4rem, 2vw, 2rem);
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+.card {
+  border-radius: var(--pp-radius);
+}
+
+.pp-footer {
+  background: var(--pp-dark);
+  color: #fff;
+}
+
+.table th {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .hero-section .display-4 {
+    font-size: 2rem;
+  }
+}
+
+
+FILE: public\assets\js\main.js
+(() => {
+  const forms = document.querySelectorAll('form[novalidate]');
+  forms.forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    });
+  });
+})();
+
+
+FILE: public\index.php
+<?php
+
+declare(strict_types=1);
+
+$cookieSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'domain' => '',
+    'secure' => $cookieSecure,
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+
+session_start();
+
+require_once __DIR__ . '/../bootstrap.php';
+
+$uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+$routes = config('routes');
+$matched = null;
+
+foreach ($routes as $route) {
+    [$routeMethod, $routePath, $controllerName, $action, $middleware] = $route;
+    if ($method === $routeMethod && $uri === $routePath) {
+        $matched = $route;
+        break;
+    }
+}
+
+if (!$matched) {
+    http_response_code(404);
+    echo '404 Not Found';
+    exit;
+}
+
+[, , $controllerName, $action, $middleware] = $matched;
+
+switch ($middleware) {
+    case 'guest':
+        if (current_user()) {
+            redirect(is_admin() ? '/admin/dashboard' : '/member/dashboard');
+        }
+        break;
+    case 'auth':
+        if (!current_user()) {
+            flash('error', 'Please log in first.');
+            redirect('/login');
+        }
+        break;
+    case 'admin':
+        if (!current_user() || !is_admin()) {
+            flash('error', 'Admin access required.');
+            redirect('/admin/login');
+        }
+        break;
+}
+
+$controllerClass = 'App\\Controllers\\' . $controllerName;
+$controller = new $controllerClass();
+$controller->$action();
+
+
+FILE: README.md
+# PulsePoint Fitness
+
+PulsePoint Fitness is a full-stack gym membership management web application built with plain PHP 8+, MySQL 8+, Bootstrap 5, HTML5, CSS, and vanilla JavaScript.
+
+## Features
+
+- Public pages: Home, About, Plans, Trainers, Class Schedule, Locations, Contact, FAQ
+- Authentication: Register, Member Login, Admin Login, Logout
+- Member module: profile update, subscribe/renew/cancel membership, class booking and cancellation, booking dashboard
+- Admin module: dashboard statistics and CRUD for users, plans, trainers, classes, locations, bookings, messages
+- Security: PDO prepared statements, password hashing, session auth, role-based access control, CSRF protection, output escaping, server-side validation
+
+## Tech Stack
+
+- Frontend: HTML5, Bootstrap 5, CSS, JavaScript
+- Backend: PHP 8+
+- Database: MySQL 8+
+
+## Project Structure
+
+- `public/` front controller and static assets
+- `app/Controllers/` request handlers
+- `app/Models/` data access classes
+- `app/Views/` layouts, partials, pages, admin views
+- `config/` app, DB, route config
+- `database/migrations/` SQL schema
+- `database/seeds/` SQL seed data
+- `tests/` basic test placeholders
+
+## Setup
+
+1. Copy `.env.example` to your environment (or set equivalent env vars):
+   - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
+2. Create database and tables:
+   - Run `database/migrations/001_init_schema.sql`
+3. Insert sample data:
+   - Run `database/seeds/001_seed_data.sql`
+4. Serve app from `public/` as web root.
+   - Apache: point DocumentRoot to `.../GroupProject/public`
+   - Or PHP built-in server: `php -S localhost:8000 -t public` (if PHP CLI installed)
+
+## Seed Credentials
+
+- Admin:
+  - Email: `admin@pulsepoint.test`
+  - Password: `Admin@123`
+- Member:
+  - Email: `member@pulsepoint.test`
+  - Password: `Member@123`
+
+## Notes
+
+- This project is a fictional student demo for web systems coursework.
+- No external backend framework is used.
+
+
+FILE: tests\FeatureTest.php
+<?php
+
+declare(strict_types=1);
+
+// Basic placeholder for manual or future PHPUnit feature tests.
+
+require_once __DIR__ . '/../bootstrap.php';
+
+echo "Feature test placeholder loaded.\n";
+
+
+FILE: tests\README.md
+# Tests
+
+This folder contains lightweight placeholders for project demonstration.
+
+- `FeatureTest.php`: starter script for smoke checks.
+
+You can extend this with PHPUnit if needed.
+
+

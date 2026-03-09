@@ -1,0 +1,27 @@
+<section class="container py-5">
+  <h1 class="section-title">Membership Plans</h1>
+  <p class="mb-4">Choose the package that matches your training goals.</p>
+  <div class="row g-3">
+    <?php foreach ($plans as $plan): ?>
+      <div class="col-md-4">
+        <article class="card h-100 border-0 shadow-sm">
+          <div class="card-body d-flex flex-column">
+            <h2 class="h5"><?= e($plan['name']) ?></h2>
+            <p class="display-6 fw-bold">$<?= e(number_format((float) $plan['price'], 2)) ?></p>
+            <p><?= e($plan['duration_months']) ?> month(s)</p>
+            <p class="flex-grow-1"><?= e($plan['description']) ?></p>
+            <?php if (current_user() && !is_admin()): ?>
+              <form action="/member/membership/subscribe" method="post">
+                <?= csrf_input() ?>
+                <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
+                <button class="btn btn-brand w-100" type="submit">Subscribe</button>
+              </form>
+            <?php else: ?>
+              <a href="/register" class="btn btn-brand w-100">Get Started</a>
+            <?php endif; ?>
+          </div>
+        </article>
+      </div>
+    <?php endforeach; ?>
+  </div>
+</section>
