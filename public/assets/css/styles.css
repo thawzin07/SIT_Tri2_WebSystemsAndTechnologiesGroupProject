@@ -1,3 +1,78 @@
+:root {
+  --pp-primary: #d9480f;
+  --pp-primary-dark: #b23c0a;
+  --pp-dark: #111827;
+  --pp-accent: #22c55e;
+  --pp-bg-soft: #f3f4f6;
+  --pp-text: #111827;
+  --pp-muted: #6b7280;
+  --pp-radius: 1rem;
+}
+
 body {
-  background: #f8f9fa;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--pp-text);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.pp-navbar {
+  background: linear-gradient(90deg, var(--pp-dark), #1f2937);
+}
+
+.pp-navbar .navbar-brand,
+.pp-navbar .nav-link {
+  color: #f8fafc;
+}
+
+.pp-navbar .nav-link:hover,
+.pp-navbar .nav-link:focus {
+  color: #fdba74;
+}
+
+.hero-section {
+  background: radial-gradient(circle at top right, #fb923c, var(--pp-primary-dark) 45%, var(--pp-dark));
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--pp-radius);
+  backdrop-filter: blur(3px);
+}
+
+.btn-brand {
+  background: var(--pp-primary);
+  color: #fff;
+  border: none;
+}
+
+.btn-brand:hover,
+.btn-brand:focus {
+  background: var(--pp-primary-dark);
+  color: #fff;
+}
+
+.section-title {
+  font-size: clamp(1.4rem, 2vw, 2rem);
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+.card {
+  border-radius: var(--pp-radius);
+}
+
+.pp-footer {
+  background: var(--pp-dark);
+  color: #fff;
+}
+
+.table th {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .hero-section .display-4 {
+    font-size: 2rem;
+  }
 }

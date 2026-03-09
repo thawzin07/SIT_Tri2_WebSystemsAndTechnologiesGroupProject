@@ -1,1 +1,12 @@
-console.log("App loaded");
+(() => {
+  const forms = document.querySelectorAll('form[novalidate]');
+  forms.forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    });
+  });
+})();
