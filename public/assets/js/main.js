@@ -1,12 +1,88 @@
 (() => {
-  const forms = document.querySelectorAll('form[novalidate]');
-  forms.forEach((form) => {
-    form.addEventListener('submit', (event) => {
-      if (!form.checkValidity()) {
-        event.preventDefault();
-        event.stopPropagation();
+  const enhanceNavState = () => {
+    const currentPath = window.location.pathname || '/';
+    document.querySelectorAll('[data-nav-link]').forEach((link) => {
+      const href = link.getAttribute('href');
+      if (!href) {
+        return;
       }
-      form.classList.add('was-validated');
+
+      const active = href === currentPath;
+      link.classList.toggle('active', active);
+      if (active) {
+        link.setAttribute('aria-current', 'page');
+      } else {
+        link.removeAttribute('aria-current');
+      }
     });
-  });
+  };
+
+  const enhanceValidation = () => {
+    const forms = document.querySelectorAll('form[novalidate]');
+    forms.forEach((form) => {
+      form.addEventListener('submit', (event) => {
+        if (!form.checkValidity()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        form.classList.add('was-validated');
+      });
+    });
+  };
+
+  const enhanceResponsiveTables = () => {
+    const wrappers = document.querySelectorAll('.table-responsive');
+    wrappers.forEach((wrapper) => {
+      wrapper.classList.add('mobile-stack');
+      const table = wrapper.querySelector('table');
+      if (!table) {
+        return;
+      }
+
+      const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+      table.querySelectorAll('tbody tr').forEach((row) => {
+        row.querySelectorAll('td').forEach((cell, idx) => {
+          if (!cell.dataset.label && headers[idx]) {
+            cell.dataset.label = headers[idx];
+          }
+        });
+      });
+    });
+  };
+
+  const enhanceAdminFilters = () => {
+    document.querySelectorAll('[data-table-filter]').forEach((input) => {
+      const targetSelector = input.getAttribute('data-table-filter');
+      if (!targetSelector) {
+        return;
+      }
+
+      const table = document.querySelector(targetSelector);
+      if (!table) {
+        return;
+      }
+
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+      input.addEventListener('input', () => {
+        const keyword = input.value.trim().toLowerCase();
+        rows.forEach((row) => {
+          const text = row.textContent.toLowerCase();
+          row.style.display = keyword === '' || text.includes(keyword) ? '' : 'none';
+        });
+      });
+    });
+  };
+
+  const animateCards = () => {
+    document.querySelectorAll('.card, .table-responsive').forEach((node, index) => {
+      node.classList.add('pp-fade-in');
+      node.style.animationDelay = `${Math.min(index * 40, 220)}ms`;
+    });
+  };
+
+  enhanceNavState();
+  enhanceValidation();
+  enhanceResponsiveTables();
+  enhanceAdminFilters();
+  animateCards();
 })();

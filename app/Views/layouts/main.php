@@ -9,8 +9,9 @@
     <link rel="stylesheet" href="/assets/css/styles.css">
 </head>
 <body class="d-flex flex-column min-vh-100">
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <?php partial('navbar'); ?>
-<main class="flex-grow-1">
+<main id="main-content" class="flex-grow-1" tabindex="-1">
     <?php partial('alerts'); ?>
     <?= $content ?>
 </main>

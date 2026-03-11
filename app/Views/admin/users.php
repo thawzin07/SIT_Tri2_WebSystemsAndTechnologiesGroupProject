@@ -1,5 +1,10 @@
 <section class="container py-5">
   <h1 class="section-title">Manage Users</h1>
+  <div class="admin-toolbar">
+    <label for="users-filter" class="form-label mb-1">Search Users</label>
+    <input id="users-filter" type="search" class="form-control" placeholder="Search by name, email, phone, or role" data-table-filter="#users-table">
+  </div>
+
   <form action="/admin/users/create" method="post" class="card border-0 shadow-sm p-3 mb-4">
     <?= csrf_input() ?>
     <h2 class="h5">Create User</h2>
@@ -13,8 +18,11 @@
     </div>
   </form>
 
+  <?php if (empty($users)): ?>
+    <div class="empty-state">No users found.</div>
+  <?php else: ?>
   <div class="table-responsive">
-    <table class="table table-striped table-sm align-middle">
+    <table id="users-table" class="table table-striped table-sm align-middle">
       <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Actions</th></tr></thead>
       <tbody>
       <?php foreach ($users as $u): ?>
@@ -40,4 +48,5 @@
       </tbody>
     </table>
   </div>
+  <?php endif; ?>
 </section>
