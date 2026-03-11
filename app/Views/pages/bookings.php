@@ -2,6 +2,9 @@
   <h1 class="section-title">My Bookings</h1>
   <div class="card border-0 shadow-sm p-3 mb-4">
     <h2 class="h5">Book a Class</h2>
+    <?php if (empty($classes)): ?>
+      <div class="empty-state">No upcoming classes available for booking.</div>
+    <?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm">
         <thead><tr><th>Class</th><th>Date</th><th>Trainer</th><th>Location</th><th>Availability</th><th></th></tr></thead>
@@ -14,7 +17,10 @@
             <td><?= e($class['trainer_name']) ?></td>
             <td><?= e($class['location_name']) ?></td>
             <td>
-              <small><?= $seatsLeft ?> / <?= (int)$class['capacity'] ?> seats</small>
+              <span class="badge-soft <?= $seatsLeft > 0 ? 'success' : 'warning' ?>">
+                <?= $seatsLeft > 0 ? 'Open' : 'Full' ?>
+              </span>
+              <small class="ms-2"><?= $seatsLeft ?> / <?= (int)$class['capacity'] ?> seats</small>
               <?php if ((int)$class['waitlist_count'] > 0): ?>
                 <div><small><?= (int)$class['waitlist_count'] ?> waiting</small></div>
               <?php endif; ?>
@@ -31,6 +37,7 @@
         </tbody>
       </table>
     </div>
+    <?php endif; ?>
   </div>
 
   <div class="card border-0 shadow-sm p-3 mb-4">
@@ -65,6 +72,9 @@
 
   <div class="card border-0 shadow-sm p-3">
     <h2 class="h5">My Booking History</h2>
+    <?php if (empty($bookings)): ?>
+      <div class="empty-state">You have not booked any classes yet.</div>
+    <?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm">
         <thead><tr><th>Class</th><th>Date</th><th>Location</th><th>Status</th><th></th></tr></thead>
@@ -89,5 +99,6 @@
         </tbody>
       </table>
     </div>
+    <?php endif; ?>
   </div>
 </section>

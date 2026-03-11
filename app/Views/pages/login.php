@@ -6,8 +6,10 @@
         <h1 class="h3 mb-3"><?= e($title ?? 'Login') ?></h1>
         <label for="email" class="form-label">Email</label>
         <input id="email" name="email" type="email" class="form-control mb-2" value="<?= old('email') ?>" required>
+        <div class="invalid-feedback mb-2">Enter a valid email address.</div>
         <label for="password" class="form-label">Password</label>
         <input id="password" name="password" type="password" class="form-control mb-3" required>
+        <div class="invalid-feedback mb-3">Password is required.</div>
         <button class="btn btn-brand w-100" type="submit">Login</button>
         <?php if (empty($adminMode)): ?>
           <p class="mt-3 mb-1">No account? <a href="/register">Register here</a></p>

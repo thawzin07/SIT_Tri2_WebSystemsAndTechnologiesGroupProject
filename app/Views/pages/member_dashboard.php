@@ -6,7 +6,7 @@
         <h2 class="h5">Membership Status</h2>
         <?php if ($membership): ?>
           <p class="mb-1"><strong>Plan:</strong> <?= e($membership['plan_name']) ?></p>
-          <p class="mb-1"><strong>Status:</strong> <?= e($membership['status']) ?></p>
+          <p class="mb-1"><strong>Status:</strong> <span class="badge-soft <?= $membership['status'] === 'active' ? 'success' : 'warning' ?>"><?= e($membership['status']) ?></span></p>
           <p class="mb-1"><strong>Start:</strong> <?= e($membership['start_date']) ?></p>
           <p class="mb-2"><strong>End:</strong> <?= e($membership['end_date']) ?></p>
           <form action="/member/membership/renew" method="post" class="d-inline">
@@ -55,6 +55,9 @@
 
   <div class="card border-0 shadow-sm p-3">
     <h2 class="h5">Upcoming Classes</h2>
+    <?php if (empty($classes)): ?>
+      <div class="empty-state">No upcoming classes available right now.</div>
+    <?php else: ?>
     <div class="table-responsive">
       <table class="table table-sm">
         <thead><tr><th>Class</th><th>Date</th><th>Trainer</th><th>Location</th><th>Availability</th><th></th></tr></thead>
@@ -67,7 +70,10 @@
               <td><?= e($class['trainer_name']) ?></td>
               <td><?= e($class['location_name']) ?></td>
               <td>
-                <small><?= $seatsLeft ?> / <?= (int)$class['capacity'] ?> seats</small>
+                <span class="badge-soft <?= $seatsLeft > 0 ? 'success' : 'warning' ?>">
+                  <?= $seatsLeft > 0 ? 'Open' : 'Full' ?>
+                </span>
+                <small class="ms-2"><?= $seatsLeft ?> / <?= (int)$class['capacity'] ?> seats</small>
                 <?php if ((int)$class['waitlist_count'] > 0): ?>
                   <div><small><?= (int)$class['waitlist_count'] ?> waiting</small></div>
                 <?php endif; ?>
@@ -84,5 +90,6 @@
         </tbody>
       </table>
     </div>
+    <?php endif; ?>
   </div>
 </section>
