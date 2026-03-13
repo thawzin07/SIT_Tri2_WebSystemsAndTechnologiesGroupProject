@@ -310,3 +310,4 @@ class AdminController extends Controller
         flash('success', 'Message deleted.'); redirect('/admin/messages');
     }
 }
+
