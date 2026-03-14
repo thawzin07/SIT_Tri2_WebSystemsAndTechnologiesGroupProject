@@ -32,6 +32,13 @@ class Database
             ]);
         } catch (PDOException $e) {
             http_response_code(500);
+            error_log('Database connection failed: ' . $e->getMessage());
+
+            $app = config('app');
+            if (($app['debug'] ?? false) === true) {
+                exit('Database connection failed: ' . $e->getMessage());
+            }
+
             exit('Database connection failed.');
         }
 
