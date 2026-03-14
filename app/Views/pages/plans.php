@@ -1,14 +1,17 @@
-<section class="container py-5">
+<section class="container page-shell">
   <h1 class="section-title">Membership Plans</h1>
-  <p class="mb-4">Choose the package that matches your training goals.</p>
+  <p class="section-subtitle">Choose the package that matches your training goals. All plans include access to dashboard booking and progress tools.</p>
   <div class="row g-3">
-    <?php foreach ($plans as $plan): ?>
+    <?php foreach ($plans as $index => $plan): ?>
       <div class="col-md-4">
-        <article class="card h-100 border-0 shadow-sm">
-          <div class="card-body d-flex flex-column">
-            <h2 class="h5"><?= e($plan['name']) ?></h2>
-            <p class="display-6 fw-bold">$<?= e(number_format((float) $plan['price'], 2)) ?></p>
-            <p><?= e($plan['duration_months']) ?> month(s)</p>
+        <article class="card h-100 <?= $index === 1 ? 'border-primary' : '' ?>">
+          <div class="card-body d-flex flex-column p-4">
+            <?php if ($index === 1): ?>
+              <span class="badge-soft info mb-3">Most Popular</span>
+            <?php endif; ?>
+            <h2 class="h5 mb-2"><?= e($plan['name']) ?></h2>
+            <p class="display-6 fw-bold mb-1">$<?= e(number_format((float) $plan['price'], 2)) ?></p>
+            <p class="text-muted mb-3"><?= e($plan['duration_months']) ?> month(s)</p>
             <p class="flex-grow-1"><?= e($plan['description']) ?></p>
             <?php if (current_user() && !is_admin()): ?>
               <form action="/member/membership/subscribe" method="post">
