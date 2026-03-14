@@ -37,6 +37,7 @@ PulsePoint Fitness is a full-stack gym membership management web application bui
 ## Setup
 
 1. Copy `.env.example` to your environment (or set equivalent env vars):
+  - `APP_URL` (recommended: `http://localhost:8000`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
 2. Create database and tables:
    - Run `database/migrations/001_init_schema.sql`
@@ -44,13 +45,16 @@ PulsePoint Fitness is a full-stack gym membership management web application bui
 3. Insert sample data:
    - Run `database/seeds/001_seed_data.sql`
 4. Serve app from `public/` as web root.
-   - Apache: point DocumentRoot to `.../GroupProject/public`
-   - Or PHP built-in server: `php -S localhost:8000 -t public` (if PHP CLI installed)
+  - Preferred: PHP built-in server: `php -S localhost:8000 -t public`
+  - Optional: use VS Code Run and Debug with `.vscode/launch.json` -> `PHP: Serve current project (localhost:8000)`
 
 ## Quick Verification
 
 - Optional route sanity check:
   - `php tests/FeatureTest.php`
+- Open the app:
+  - `http://localhost:8000/`
+  - `http://localhost:8000/about`
 - Confirm migration effects in DB:
   - `class_waitlist` table exists
   - new indexes exist on `classes` and `bookings`
