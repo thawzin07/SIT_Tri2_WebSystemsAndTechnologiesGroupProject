@@ -1,7 +1,6 @@
-<section class="container page-shell">
+<section class="container py-5">
   <h1 class="section-title">Contact Us</h1>
-  <p class="section-subtitle">Have a question about classes, membership plans, or facilities? Send us a message and we will get back to you.</p>
-  <form action="/contact" method="post" class="card p-4" novalidate>
+  <form action="/contact" method="post" class="card border-0 shadow-sm p-4" novalidate>
     <?= csrf_input() ?>
     <div class="row g-3">
       <div class="col-md-6"><label for="name" class="form-label">Name</label><input id="name" name="name" class="form-control" value="<?= old('name') ?>" required><div class="invalid-feedback">Name is required.</div></div>

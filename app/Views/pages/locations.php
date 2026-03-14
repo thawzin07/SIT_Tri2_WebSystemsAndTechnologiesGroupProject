@@ -1,11 +1,10 @@
-<section class="container page-shell">
+<section class="container py-5">
   <h1 class="section-title">Gym Locations</h1>
-  <p class="section-subtitle">Find a branch near you and check operating hours.</p>
   <div class="row g-3">
     <?php foreach ($locations as $location): ?>
       <div class="col-md-6">
-        <article class="card h-100">
-          <div class="card-body p-4">
+        <article class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
             <h2 class="h5"><?= e($location['name']) ?></h2>
             <p class="mb-1"><?= e($location['address']) ?></p>
             <p class="mb-1">Phone: <?= e($location['phone']) ?></p>
