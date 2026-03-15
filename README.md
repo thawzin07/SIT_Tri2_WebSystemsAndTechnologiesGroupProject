@@ -1,74 +1,84 @@
 # PulsePoint Fitness
 
-PulsePoint Fitness is a full-stack gym membership management web application built with plain PHP 8+, MySQL 8+, Bootstrap 5, HTML5, CSS, and vanilla JavaScript.
+PulsePoint Fitness is a student full-stack gym membership web app built with plain PHP, MySQL, Bootstrap, CSS, and vanilla JavaScript.
 
 ## Features
 
-- Public pages: Home, About, Plans, Trainers, Class Schedule, Locations, Contact, FAQ
-- Authentication: Register, Member Login, Admin Login, Logout
-- Member module: profile update, subscribe/renew/cancel membership, class booking/cancellation, waitlist join/leave, auto-promotion from waitlist
-- Admin module: dashboard statistics and CRUD for users, plans, trainers, classes, locations, bookings, messages
-- Security: PDO prepared statements, password hashing, session auth, role-based access control, CSRF protection, output escaping, server-side validation
-- Access control: explicit role checks for `admin` and `member` routes
+- Public pages: Home, About, Plans, Trainers, Schedule, Locations, Contact, FAQ
+- Auth: register, member login, admin login, logout
+- Member module: profile, memberships, bookings, waitlist
+- Admin module: dashboard + CRUD for users, plans, trainers, classes, locations, bookings, messages
+- Security basics: prepared statements, password hashing, CSRF tokens, escaping, role checks
 
 ## Tech Stack
 
-- Frontend: HTML5, Bootstrap 5, CSS, JavaScript
-- Backend: PHP 8+
-- Database: MySQL 8+
+- PHP 8+
+- MySQL 8+
+- Bootstrap 5 + HTML/CSS/JavaScript
 
 ## Project Structure
 
-- `public/` front controller and static assets
-- `app/Controllers/` request handlers
-- `app/Models/` data access classes
-- `app/Views/` layouts, partials, pages, admin views
-- `config/` app, DB, route config
-- `database/migrations/` SQL schema
-- `database/seeds/` SQL seed data
-- `tests/` lightweight feature checks (route wiring baseline)
+- `public/` app entry and static assets
+- `app/Controllers/` controllers
+- `app/Models/` models
+- `app/Views/` pages, layouts, partials
+- `config/` app and route config
+- `database/migrations/` schema migrations
+- `database/seeds/` seed scripts
 
-## Current Status
+## Quick Setup
 
-- Functional MVP/prototype for coursework requirements
-- Booking flow includes transactional seat handling + waitlist auto-promotion
-- Not production-grade yet: no CI/CD pipeline, limited automated testing, and no full observability stack
+1. Copy env file:
+```bash
+cp .env.example .env
+```
+On Windows PowerShell:
+```powershell
+Copy-Item .env.example .env
+```
 
-## Setup
+2. Update `.env`:
+- `APP_URL=http://localhost:8000`
+- `DB_HOST=127.0.0.1`
+- `DB_PORT=3306`
+- `DB_NAME=pulsepoint_fitness`
+- `DB_USER=root`
+- `DB_PASS=<your_password>`
 
-1. Copy `.env.example` to your environment (or set equivalent env vars):
-  - `APP_URL` (recommended: `http://localhost:8000`)
-   - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
-2. Create database and tables:
-   - Run `database/migrations/001_init_schema.sql`
-   - Run `database/migrations/002_waitlist_and_booking_integrity.sql`
-3. Insert sample data:
-   - Run `database/seeds/001_seed_data.sql`
-4. Serve app from `public/` as web root.
-  - Preferred: PHP built-in server: `php -S localhost:8000 -t public`
-  - Optional: use VS Code Run and Debug with `.vscode/launch.json` -> `PHP: Serve current project (localhost:8000)`
+3. Create database:
+```sql
+CREATE DATABASE IF NOT EXISTS pulsepoint_fitness;
+```
 
-## Quick Verification
+4. Run SQL scripts in this order:
 
-- Optional route sanity check:
-  - `php tests/FeatureTest.php`
-- Open the app:
-  - `http://localhost:8000/`
-  - `http://localhost:8000/about`
-- Confirm migration effects in DB:
-  - `class_waitlist` table exists
-  - new indexes exist on `classes` and `bookings`
+Migrations:
+1. `database/migrations/001_init_schema.sql`
+2. `database/migrations/002_waitlist_and_booking_integrity.sql`
+3. `database/migrations/003_add_media_payment_notifications_qr.sql`
 
-## Seed Credentials
+Seeds:
+1. `database/seeds/001_seed_data.sql`
+2. `database/seeds/002_seed_media_payment_qr_demo.sql`
 
-- Admin:
-  - Email: `admin@pulsepoint.test`
-  - Password: `Admin@123`
-- Member:
-  - Email: `member@pulsepoint.test`
-  - Password: `Member@123`
+5. Start the app:
+```bash
+php -S localhost:8000 -t public
+```
+If `php` is not in PATH (example XAMPP):
+```powershell
+& "C:\xampp\php\php.exe" -S localhost:8000 -t public
+```
+
+6. Open:
+- `http://localhost:8000/`
+
+## Demo Accounts
+
+- Admin: `admin@pulsepoint.test` / `Admin@123`
+- Member: `member@pulsepoint.test` / `Member@123`
 
 ## Notes
 
-- This project is a fictional student demo for web systems coursework.
+- This is a fictional coursework project.
 - No external backend framework is used.
