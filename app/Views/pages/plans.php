@@ -14,10 +14,13 @@
             <p class="text-muted mb-3"><?= e($plan['duration_months']) ?> month(s)</p>
             <p class="flex-grow-1"><?= e($plan['description']) ?></p>
             <?php if (current_user() && !is_admin()): ?>
-              <form action="/member/membership/subscribe" method="post">
+              <form action="/member/payments/checkout" method="post">
                 <?= csrf_input() ?>
                 <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
-                <button class="btn btn-brand w-100" type="submit">Subscribe</button>
+                <input type="hidden" name="payment_type" value="purchase">
+                <label class="form-label small mt-1 mb-1" for="promo-<?= (int)$plan['id'] ?>">Promo Code (optional)</label>
+                <input id="promo-<?= (int)$plan['id'] ?>" class="form-control form-control-sm mb-2" name="promo_code" placeholder="e.g. WELCOME10">
+                <button class="btn btn-brand w-100" type="submit">Checkout</button>
               </form>
             <?php else: ?>
               <a href="/register" class="btn btn-brand w-100">Get Started</a>

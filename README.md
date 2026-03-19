@@ -8,6 +8,7 @@ PulsePoint Fitness is a student full-stack gym membership web app built with pla
 - Auth: register, member login, admin login, logout
 - Member module: profile, memberships, bookings, waitlist
 - Admin module: dashboard + CRUD for users, plans, trainers, classes, locations, bookings, messages
+- Stripe billing module: checkout, webhook processing, payment history, retry/resume checkout flow
 - Security basics: prepared statements, password hashing, CSRF tokens, escaping, role checks
 
 ## Tech Stack
@@ -44,6 +45,11 @@ Copy-Item .env.example .env
 - `DB_NAME=pulsepoint_fitness`
 - `DB_USER=root`
 - `DB_PASS=<your_password>`
+- `STRIPE_SECRET_KEY=<your_stripe_secret>`
+- `STRIPE_PUBLISHABLE_KEY=<your_stripe_publishable>`
+- `STRIPE_WEBHOOK_SECRET=<your_webhook_signing_secret>`
+- `STRIPE_CURRENCY=usd`
+- `STRIPE_PROMO_CODES=WELCOME10:coupon_xxx`
 
 3. Create database:
 ```sql

@@ -1,50 +1,58 @@
 USE pulsepoint_fitness;
 
 START TRANSACTION;
+SET @OLD_SQL_SAFE_UPDATES := @@SQL_SAFE_UPDATES;
+SET SQL_SAFE_UPDATES = 0;
 
 -- 1) DEMO IMAGE PATHS
 
 UPDATE users
 SET profile_image_path = 'profiles/member-2.jpg'
-WHERE id = 2;
+WHERE email = 'member@pulsepoint.test';
 
 UPDATE trainers
-SET image_path = CASE id
-  WHEN 1 THEN 'trainers/aiden-cruz.jpg'
-  WHEN 2 THEN 'trainers/maya-tan.jpg'
-  WHEN 3 THEN 'trainers/noah-lim.jpg'
+SET image_path = CASE name
+  WHEN 'Aiden Cruz' THEN 'trainers/aiden-cruz.jpg'
+  WHEN 'Maya Tan' THEN 'trainers/maya-tan.jpg'
+  WHEN 'Noah Lim' THEN 'trainers/noah-lim.jpg'
+  WHEN 'Hannah Teo' THEN 'trainers/hannah-teo.jpg'
   ELSE image_path
 END,
-image_alt = CASE id
-  WHEN 1 THEN 'Trainer Aiden Cruz portrait'
-  WHEN 2 THEN 'Trainer Maya Tan portrait'
-  WHEN 3 THEN 'Trainer Noah Lim portrait'
+image_alt = CASE name
+  WHEN 'Aiden Cruz' THEN 'Trainer Aiden Cruz portrait'
+  WHEN 'Maya Tan' THEN 'Trainer Maya Tan portrait'
+  WHEN 'Noah Lim' THEN 'Trainer Noah Lim portrait'
+  WHEN 'Hannah Teo' THEN 'Trainer Hannah Teo portrait'
   ELSE image_alt
 END
-WHERE id IN (1, 2, 3);
+WHERE name IN ('Aiden Cruz', 'Maya Tan', 'Noah Lim', 'Hannah Teo');
 
 UPDATE gym_locations
-SET image_path = CASE id
-  WHEN 1 THEN 'locations/pulsepoint-downtown.jpg'
-  WHEN 2 THEN 'locations/pulsepoint-riverside.jpg'
+SET image_path = CASE name
+  WHEN 'PulsePoint Downtown' THEN 'locations/pulsepoint-downtown.jpg'
+  WHEN 'PulsePoint Riverside' THEN 'locations/pulsepoint-riverside.jpg'
+  WHEN 'PulsePoint East Hub' THEN 'locations/pulsepoint-east-hub.jpg'
   ELSE image_path
 END,
-latitude = CASE id
-  WHEN 1 THEN 1.2902700
-  WHEN 2 THEN 1.3001000
+latitude = CASE name
+  WHEN 'PulsePoint Downtown' THEN 1.2902700
+  WHEN 'PulsePoint Riverside' THEN 1.3001000
+  WHEN 'PulsePoint East Hub' THEN 1.3181000
   ELSE latitude
 END,
-longitude = CASE id
-  WHEN 1 THEN 103.8519590
-  WHEN 2 THEN 103.8455000
+longitude = CASE name
+  WHEN 'PulsePoint Downtown' THEN 103.8519590
+  WHEN 'PulsePoint Riverside' THEN 103.8455000
+  WHEN 'PulsePoint East Hub' THEN 103.9138000
   ELSE longitude
 END,
-map_place_id = CASE id
-  WHEN 1 THEN 'demo_place_downtown'
-  WHEN 2 THEN 'demo_place_riverside'
+map_place_id = CASE name
+  WHEN 'PulsePoint Downtown' THEN 'demo_place_downtown'
+  WHEN 'PulsePoint Riverside' THEN 'demo_place_riverside'
+  WHEN 'PulsePoint East Hub' THEN 'demo_place_east_hub'
   ELSE map_place_id
 END
-WHERE id IN (1, 2);
+WHERE name IN ('PulsePoint Downtown', 'PulsePoint Riverside', 'PulsePoint East Hub');
 
 -- 2) DEMO PAYMENT
 
@@ -62,9 +70,14 @@ INSERT INTO payments (
   paid_at
 )
 SELECT
-  2,
-  (SELECT id FROM memberships WHERE user_id = 2 ORDER BY id DESC LIMIT 1),
-  2,
+  (SELECT id FROM users WHERE email = 'member@pulsepoint.test'),
+  (SELECT m.id
+   FROM memberships m
+   JOIN users u ON u.id = m.user_id
+   WHERE u.email = 'member@pulsepoint.test'
+   ORDER BY m.id DESC
+   LIMIT 1),
+  (SELECT id FROM membership_plans WHERE name = 'Performance Plus'),
   'stripe',
   'cs_test_demo_member2_20260315',
   'pi_test_demo_member2_20260315',
@@ -118,7 +131,7 @@ INSERT INTO notification_logs (
   sent_at
 )
 SELECT
-  2,
+  (SELECT id FROM users WHERE email = 'member@pulsepoint.test'),
   'email',
   'payment_success',
   'member@pulsepoint.test',
@@ -127,7 +140,7 @@ SELECT
   NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM notification_logs
-  WHERE user_id = 2
+  WHERE user_id = (SELECT id FROM users WHERE email = 'member@pulsepoint.test')
     AND channel = 'email'
     AND event_type = 'payment_success'
     AND target = 'member@pulsepoint.test'
@@ -143,7 +156,7 @@ INSERT INTO notification_logs (
   sent_at
 )
 SELECT
-  2,
+  (SELECT id FROM users WHERE email = 'member@pulsepoint.test'),
   'telegram',
   'invoice_sent',
   'demo_chat_member_2',
@@ -152,7 +165,7 @@ SELECT
   NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM notification_logs
-  WHERE user_id = 2
+  WHERE user_id = (SELECT id FROM users WHERE email = 'member@pulsepoint.test')
     AND channel = 'telegram'
     AND event_type = 'invoice_sent'
     AND target = 'demo_chat_member_2'
@@ -167,12 +180,12 @@ INSERT INTO member_qr_tokens (
   is_active
 )
 SELECT
-  2,
+  (SELECT id FROM users WHERE email = 'member@pulsepoint.test'),
   SHA2('demo-member-2-qr-token', 256),
   DATE_ADD(NOW(), INTERVAL 365 DAY),
   1
 WHERE NOT EXISTS (
-  SELECT 1 FROM member_qr_tokens WHERE user_id = 2
+  SELECT 1 FROM member_qr_tokens WHERE user_id = (SELECT id FROM users WHERE email = 'member@pulsepoint.test')
 );
 
 INSERT INTO check_ins (
@@ -183,16 +196,17 @@ INSERT INTO check_ins (
   checked_in_at
 )
 SELECT
-  2,
-  1,
+  (SELECT id FROM users WHERE email = 'member@pulsepoint.test'),
+  (SELECT id FROM gym_locations WHERE name = 'PulsePoint Downtown'),
   'qr',
-  1,
+  (SELECT id FROM users WHERE email = 'admin@pulsepoint.test'),
   NOW()
 WHERE NOT EXISTS (
   SELECT 1 FROM check_ins
-  WHERE user_id = 2
-    AND location_id = 1
+  WHERE user_id = (SELECT id FROM users WHERE email = 'member@pulsepoint.test')
+    AND location_id = (SELECT id FROM gym_locations WHERE name = 'PulsePoint Downtown')
     AND DATE(checked_in_at) = CURDATE()
 );
 
 COMMIT;
+SET SQL_SAFE_UPDATES = @OLD_SQL_SAFE_UPDATES;
