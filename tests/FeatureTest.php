@@ -10,6 +10,9 @@ $requiredRoutes = [
     ['POST', '/member/bookings/waitlist/cancel', 'MemberController', 'cancelWaitlist', 'member'],
     ['POST', '/member/bookings/book', 'MemberController', 'bookClass', 'member'],
     ['POST', '/member/bookings/cancel', 'MemberController', 'cancelBooking', 'member'],
+    ['POST', '/member/payments/checkout', 'PaymentController', 'checkout', 'member'],
+    ['POST', '/member/payments/resume', 'PaymentController', 'resumeCheckout', 'member'],
+    ['POST', '/webhooks/stripe', 'PaymentController', 'stripeWebhook', 'public'],
 ];
 
 $assert = function (bool $condition, string $message): void {

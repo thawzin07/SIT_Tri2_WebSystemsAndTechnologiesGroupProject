@@ -9,6 +9,7 @@ use App\Models\ClassWaitlistModel;
 use App\Models\GymClassModel;
 use App\Models\MembershipModel;
 use App\Models\MembershipPlanModel;
+use App\Models\PaymentModel;
 use App\Models\UserModel;
 use App\Services\BookingService;
 
@@ -22,13 +23,35 @@ class MemberController extends Controller
         $membershipModel = new MembershipModel();
         $bookingModel = new BookingModel();
         $classModel = new GymClassModel();
+        $paymentModel = new PaymentModel();
+        $membership = $membershipModel->currentForUser((int) $user['id']);
+
+        $paymentState = (string) ($_GET['payment'] ?? '');
+        if ($paymentState === 'success') {
+            flash('success', 'Payment received. Final confirmation may take a few seconds.');
+        } elseif ($paymentState === 'cancelled') {
+            flash('error', 'Checkout was cancelled. You can resume payment anytime.');
+        }
+
+        $expiringSoon = false;
+        if ($membership && ($membership['status'] ?? '') === 'active') {
+            $end = strtotime((string) $membership['end_date']);
+            if ($end !== false) {
+                $days = (int) floor(($end - strtotime('today')) / 86400);
+                $expiringSoon = $days >= 0 && $days <= 7;
+            }
+        }
 
         $this->render('pages/member_dashboard', [
             'title' => 'Member Dashboard',
-            'membership' => $membershipModel->currentForUser((int) $user['id']),
+            'membership' => $membership,
             'history' => $membershipModel->historyForUser((int) $user['id']),
             'bookings' => $bookingModel->userBookings((int) $user['id']),
             'classes' => $classModel->upcomingActive(),
+            'billingHistory' => $paymentModel->billingHistoryForUser((int) $user['id']),
+            'pendingPayment' => $paymentModel->findLatestPendingForUser((int) $user['id']),
+            'failedPayment' => $paymentModel->findRecentFailedForUser((int) $user['id']),
+            'expiringSoon' => $expiringSoon,
         ]);
     }
 
