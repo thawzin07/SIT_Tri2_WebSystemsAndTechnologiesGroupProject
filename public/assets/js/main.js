@@ -80,9 +80,75 @@
     });
   };
 
+  const enhanceChatbot = () => {
+    const toggle = document.getElementById('chatbot-toggle');
+    const container = document.getElementById('chatbot-container');
+    const close = document.getElementById('chatbot-close');
+    const input = document.getElementById('chatbot-input');
+    const send = document.getElementById('chatbot-send');
+    const messages = document.getElementById('chatbot-messages');
+
+    if (!toggle || !container) return;
+
+    const faqData = {
+      'pause membership': 'This demo system supports renew and cancel flows. Pause can be an optional extension.',
+      'book classes': 'Yes. Members can reserve class slots on the bookings dashboard.',
+      'beginners': 'Absolutely. Programs are structured for all levels.',
+      'membership': 'We offer various membership plans. Check our plans page for details.',
+      'classes': 'We have a variety of classes. Visit our schedule page to see available classes.',
+      'trainers': 'Our trainers are experienced professionals. Meet them on the trainers page.',
+      'locations': 'We have multiple locations. Find them on the locations page.',
+      'contact': 'You can contact us through the contact page.',
+      'default': 'I\'m sorry, I don\'t have information on that. Please check our FAQ page or contact us directly.'
+    };
+
+    const addMessage = (text, sender) => {
+      const message = document.createElement('div');
+      message.className = `message ${sender}`;
+      message.textContent = text;
+      messages.appendChild(message);
+      messages.scrollTop = messages.scrollHeight;
+    };
+
+    const getResponse = (query) => {
+      const lowerQuery = query.toLowerCase();
+      for (const key in faqData) {
+        if (lowerQuery.includes(key)) {
+          return faqData[key];
+        }
+      }
+      return faqData['default'];
+    };
+
+    toggle.addEventListener('click', () => {
+      container.classList.toggle('d-none');
+    });
+
+    close.addEventListener('click', () => {
+      container.classList.add('d-none');
+    });
+
+    const sendMessage = () => {
+      const text = input.value.trim();
+      if (!text) return;
+      addMessage(text, 'user');
+      input.value = '';
+      setTimeout(() => {
+        const response = getResponse(text);
+        addMessage(response, 'bot');
+      }, 500);
+    };
+
+    send.addEventListener('click', sendMessage);
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  };
+
   enhanceNavState();
   enhanceValidation();
   enhanceResponsiveTables();
   enhanceAdminFilters();
   animateCards();
+  enhanceChatbot();
 })();

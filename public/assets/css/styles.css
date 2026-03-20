@@ -323,3 +323,116 @@ a:hover {
     flex-direction: column;
   }
 }
+
+/* Chatbot Styles */
+.chatbot-widget {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1050;
+}
+
+.chatbot-toggle {
+  width: 60px;
+  height: 60px;
+  background: var(--pp-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--pp-shadow-2);
+  transition: all 0.3s ease;
+}
+
+.chatbot-toggle:hover {
+  background: var(--pp-primary-strong);
+  transform: scale(1.1);
+}
+
+.chatbot-toggle span {
+  font-size: 24px;
+  color: white;
+}
+
+.chatbot-container {
+  position: absolute;
+  bottom: 80px;
+  right: 0;
+  width: 350px;
+  height: 500px;
+  background: var(--pp-surface);
+  border-radius: var(--pp-radius-lg);
+  box-shadow: var(--pp-shadow-2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chatbot-header {
+  background: var(--pp-primary);
+  color: white;
+  padding: var(--pp-gap-3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chatbot-header h5 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.chatbot-messages {
+  flex: 1;
+  padding: var(--pp-gap-3);
+  overflow-y: auto;
+  background: var(--pp-bg-soft);
+}
+
+.message {
+  margin-bottom: var(--pp-gap-2);
+  padding: var(--pp-gap-2);
+  border-radius: var(--pp-radius-md);
+  max-width: 80%;
+}
+
+.message.bot {
+  background: var(--pp-surface);
+  align-self: flex-start;
+}
+
+.message.user {
+  background: var(--pp-primary);
+  color: white;
+  align-self: flex-end;
+  margin-left: auto;
+}
+
+.chatbot-input {
+  padding: var(--pp-gap-3);
+  border-top: 1px solid var(--pp-border);
+  display: flex;
+  gap: var(--pp-gap-2);
+}
+
+.chatbot-input input {
+  flex: 1;
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius-sm);
+  padding: var(--pp-gap-2);
+}
+
+.chatbot-input input:focus {
+  outline: none;
+  border-color: var(--pp-primary);
+}
+
+@media (max-width: 576px) {
+  .chatbot-container {
+    width: 90vw;
+    height: 70vh;
+    bottom: 80px;
+    right: 5vw;
+  }
+}
