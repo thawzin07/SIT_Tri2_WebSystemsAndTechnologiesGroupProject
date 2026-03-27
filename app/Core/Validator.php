@@ -14,13 +14,24 @@ class Validator
         return trim((string) $value) !== '';
     }
 
-    public static function max(string $value, int $length): bool
+    public static function max(?string $value, int $length): bool
     {
-        return mb_strlen(trim($value)) <= $length;
+        return self::length($value) <= $length;
     }
 
-    public static function min(string $value, int $length): bool
+    public static function min(?string $value, int $length): bool
     {
-        return mb_strlen(trim($value)) >= $length;
+        return self::length($value) >= $length;
+    }
+
+    private static function length(?string $value): int
+    {
+        $normalized = trim((string) $value);
+
+        if (function_exists('mb_strlen')) {
+            return mb_strlen($normalized);
+        }
+
+        return strlen($normalized);
     }
 }
