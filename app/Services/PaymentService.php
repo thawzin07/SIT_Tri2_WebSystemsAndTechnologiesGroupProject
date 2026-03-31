@@ -303,8 +303,8 @@ class PaymentService
     private function queueNotificationHooks(array $payment, array $invoice): void
     {
         $user = $this->userModel->findWithRole((int) $payment['user_id']);
-        $emailTarget = $user['email'] ?? 'member_email_placeholder';
-        $telegramTarget = $user['phone'] ?? 'member_telegram_placeholder';
+        $emailTarget = trim((string) ($user['email'] ?? ''));
+        $telegramChatTarget = trim((string) ($user['phone'] ?? ''));
 
         $payload = [
             'payment_id' => (int) $payment['id'],
@@ -316,38 +316,50 @@ class PaymentService
             'invoice_pdf_path' => (string) ($invoice['pdf_path'] ?? ''),
         ];
 
-        $this->notificationLogModel->queue(
-            (int) $payment['user_id'],
-            'email',
-            'payment_success',
-            (string) $emailTarget,
-            $payload
-        );
+        if ($emailTarget !== '') {
+            $this->notificationLogModel->queue(
+                (int) $payment['user_id'],
+                'email',
+                'payment_success',
+                $emailTarget,
+                $payload
+            );
+        } else {
+            error_log('Skipping email notification queue for payment #' . (int) $payment['id'] . ': missing email target.');
+        }
 
         $eventType = ($payment['payment_type'] ?? '') === 'renew' ? 'membership_renewed' : 'payment_success';
-        $this->notificationLogModel->queue(
-            (int) $payment['user_id'],
-            'telegram',
-            $eventType,
-            (string) $telegramTarget,
-            $payload
-        );
+        if ($telegramChatTarget !== '') {
+            $this->notificationLogModel->queue(
+                (int) $payment['user_id'],
+                'telegram',
+                $eventType,
+                $telegramChatTarget,
+                $payload
+            );
+        } else {
+            error_log('Skipping telegram notification queue for payment #' . (int) $payment['id'] . ': missing telegram target.');
+        }
 
-        $this->notificationLogModel->queue(
-            (int) $payment['user_id'],
-            'email',
-            'invoice_sent',
-            (string) $emailTarget,
-            $payload
-        );
+        if ($emailTarget !== '') {
+            $this->notificationLogModel->queue(
+                (int) $payment['user_id'],
+                'email',
+                'invoice_sent',
+                $emailTarget,
+                $payload
+            );
+        }
 
-        $this->notificationLogModel->queue(
-            (int) $payment['user_id'],
-            'telegram',
-            'invoice_sent',
-            (string) $telegramTarget,
-            $payload
-        );
+        if ($telegramChatTarget !== '') {
+            $this->notificationLogModel->queue(
+                (int) $payment['user_id'],
+                'telegram',
+                'invoice_sent',
+                $telegramChatTarget,
+                $payload
+            );
+        }
     }
 
     private function guardAgainstTamperedMetadata(array $payment, array $metadata): void

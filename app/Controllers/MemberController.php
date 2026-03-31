@@ -252,13 +252,16 @@ class MemberController extends Controller
         $relativePath = ltrim((string) ($invoice['pdf_path'] ?? ''), '/');
         $baseDir = realpath(dirname(__DIR__, 2) . '/public');
         $absolutePath = realpath(dirname(__DIR__, 2) . '/public/' . $relativePath);
-        if ($baseDir === false || $absolutePath === false || strpos($absolutePath, $baseDir) !== 0 || !is_file($absolutePath)) {
+        $publicBase = $baseDir !== false ? rtrim(str_replace('\\', '/', $baseDir), '/') . '/' : '';
+        $resolvedPath = $absolutePath !== false ? str_replace('\\', '/', $absolutePath) : '';
+        if ($publicBase === '' || $resolvedPath === '' || !str_starts_with($resolvedPath, $publicBase) || !is_file($absolutePath)) {
             flash('error', 'Invoice file is unavailable.');
             redirect('/member/dashboard#billing');
         }
 
+        $downloadName = str_replace(["\r", "\n", '"'], ['', '', ''], basename($absolutePath));
         header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . basename($absolutePath) . '"');
+        header("Content-Disposition: attachment; filename=\"{$downloadName}\"");
         header('Content-Length: ' . (string) filesize($absolutePath));
         readfile($absolutePath);
         exit;

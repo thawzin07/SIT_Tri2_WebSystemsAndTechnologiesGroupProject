@@ -49,11 +49,15 @@ class InvoiceService
 
     private function buildInvoiceNo(int $paymentId): string
     {
-        return 'INV-' . date('Ymd') . '-' . str_pad((string) $paymentId, 6, '0', STR_PAD_LEFT);
+        return 'INV-' . date('YmdHis') . '-' . str_pad((string) $paymentId, 6, '0', STR_PAD_LEFT);
     }
 
     private function writeInvoicePdf(string $relativePath, string $invoiceNo, array $payment, string $issuedAt): void
     {
+        if (str_contains($relativePath, '..')) {
+            throw new RuntimeException('Invalid invoice path.');
+        }
+
         $absolutePath = dirname(__DIR__, 2) . '/public/' . ltrim($relativePath, '/');
         $directory = dirname($absolutePath);
         if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
