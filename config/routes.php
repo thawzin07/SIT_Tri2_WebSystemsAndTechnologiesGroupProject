@@ -12,6 +12,7 @@ return [
     ['GET', '/contact', 'HomeController', 'contact', 'public'],
     ['POST', '/contact', 'HomeController', 'submitContact', 'public'],
     ['GET', '/faq', 'HomeController', 'faq', 'public'],
+    ['POST', '/api/chatbot', 'ChatbotController', 'ask', 'public'],
 
     ['GET', '/register', 'AuthController', 'showRegister', 'guest'],
     ['POST', '/register', 'AuthController', 'register', 'guest'],

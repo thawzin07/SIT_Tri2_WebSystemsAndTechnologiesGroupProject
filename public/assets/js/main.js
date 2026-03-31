@@ -102,64 +102,213 @@
     const toggle = document.getElementById('chatbot-toggle');
     const container = document.getElementById('chatbot-container');
     const close = document.getElementById('chatbot-close');
+    const clear = document.getElementById('chatbot-clear');
+    const promptBar = document.getElementById('chatbot-quick-prompts');
     const input = document.getElementById('chatbot-input');
     const send = document.getElementById('chatbot-send');
     const messages = document.getElementById('chatbot-messages');
 
-    if (!toggle || !container) return;
+    if (!toggle || !container || !close || !clear || !promptBar || !input || !send || !messages) return;
+    const STORAGE_KEY = 'pulsepoint_chatbot_history_v1';
+    const MAX_HISTORY = 60;
+    const DEFAULT_GREETING = "Hi, I'm your PulsePoint assistant. Ask me about plans, classes, trainers, bookings, or locations.";
 
-    const faqData = {
-      'pause membership': 'This demo system supports renew and cancel flows. Pause can be an optional extension.',
-      'book classes': 'Yes. Members can reserve class slots on the bookings dashboard.',
-      'beginners': 'Absolutely. Programs are structured for all levels.',
-      'membership': 'We offer various membership plans. Check our plans page for details.',
-      'classes': 'We have a variety of classes. Visit our schedule page to see available classes.',
-      'trainers': 'Our trainers are experienced professionals. Meet them on the trainers page.',
-      'locations': 'We have multiple locations. Find them on the locations page.',
-      'contact': 'You can contact us through the contact page.',
-      'default': 'I\'m sorry, I don\'t have information on that. Please check our FAQ page or contact us directly.'
+    const formatTime = (isoTimestamp) => {
+      const date = isoTimestamp ? new Date(isoTimestamp) : new Date();
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
-    const addMessage = (text, sender) => {
-      const message = document.createElement('div');
-      message.className = `message ${sender}`;
-      message.textContent = text;
-      messages.appendChild(message);
+    const loadHistory = () => {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .filter((item) =>
+            item &&
+            (item.sender === 'user' || item.sender === 'bot') &&
+            typeof item.text === 'string' &&
+            item.text.trim() !== ''
+          )
+          .map((item) => ({
+            sender: item.sender,
+            text: item.text,
+            createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString()
+          }));
+      } catch (e) {
+        return [];
+      }
+    };
+
+    const saveHistory = (history) => {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
+      } catch (e) {
+      }
+    };
+
+    const scrollToBottom = () => {
       messages.scrollTop = messages.scrollHeight;
     };
 
-    const getResponse = (query) => {
-      const lowerQuery = query.toLowerCase();
-      for (const key in faqData) {
-        if (lowerQuery.includes(key)) {
-          return faqData[key];
-        }
+    const addMessage = (text, sender, persist = true, createdAt = new Date().toISOString()) => {
+      const row = document.createElement('div');
+      row.className = `message-row ${sender}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message';
+      bubble.textContent = text;
+
+      const meta = document.createElement('div');
+      meta.className = 'message-meta';
+      meta.textContent = `${sender === 'user' ? 'You' : 'PulsePoint'} | ${formatTime(createdAt)}`;
+
+      row.appendChild(bubble);
+      row.appendChild(meta);
+      messages.appendChild(row);
+      scrollToBottom();
+
+      if (persist) {
+        const history = loadHistory();
+        history.push({ sender, text, createdAt });
+        saveHistory(history);
       }
-      return faqData['default'];
+
+      return row;
     };
 
+    const renderHistory = () => {
+      const history = loadHistory();
+      messages.innerHTML = '';
+      if (history.length === 0) {
+        addMessage(DEFAULT_GREETING, 'bot');
+        return;
+      }
+
+      history.forEach((item) => {
+        addMessage(item.text, item.sender, false, item.createdAt);
+      });
+    };
+
+    const openChat = () => {
+      container.classList.remove('d-none');
+      toggle.setAttribute('aria-expanded', 'true');
+      input.focus();
+      scrollToBottom();
+    };
+
+    const closeChat = () => {
+      container.classList.add('d-none');
+      toggle.setAttribute('aria-expanded', 'false');
+    };
+
+    const resetChat = () => {
+      saveHistory([]);
+      messages.innerHTML = '';
+      addMessage(DEFAULT_GREETING, 'bot');
+      input.focus();
+    };
+
+    const submitPrompt = (promptText) => {
+      input.value = promptText;
+      sendMessage();
+    };
+
+    renderHistory();
+
     toggle.addEventListener('click', () => {
-      container.classList.toggle('d-none');
+      if (container.classList.contains('d-none')) {
+        openChat();
+      } else {
+        closeChat();
+      }
     });
 
     close.addEventListener('click', () => {
-      container.classList.add('d-none');
+      closeChat();
     });
 
-    const sendMessage = () => {
+    clear.addEventListener('click', () => {
+      resetChat();
+    });
+
+    promptBar.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.matches('[data-chatbot-prompt]')) return;
+      const promptText = target.getAttribute('data-chatbot-prompt');
+      if (!promptText) return;
+      if (container.classList.contains('d-none')) {
+        openChat();
+      }
+      submitPrompt(promptText);
+    });
+
+    const sendMessage = async () => {
       const text = input.value.trim();
       if (!text) return;
+
       addMessage(text, 'user');
       input.value = '';
-      setTimeout(() => {
-        const response = getResponse(text);
-        addMessage(response, 'bot');
-      }, 500);
+
+      send.disabled = true;
+      input.disabled = true;
+
+      const typingIndicator = addMessage('Typing...', 'bot', false);
+
+      try {
+        const response = await fetch('/api/chatbot', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ message: text })
+        });
+
+        let payload = {};
+        try {
+          payload = await response.json();
+        } catch (e) {
+          payload = {};
+        }
+
+        typingIndicator.remove();
+
+        if (!response.ok) {
+          const fallback = payload.error || 'I can only help with PulsePoint Fitness website topics. Please ask about memberships, classes, trainers, locations, bookings, or contact details.';
+          addMessage(fallback, 'bot');
+          return;
+        }
+
+        const botReply = typeof payload.reply === 'string' && payload.reply.trim() !== ''
+          ? payload.reply
+          : 'I can only help with PulsePoint Fitness website topics. Please ask about memberships, classes, trainers, locations, bookings, or contact details.';
+
+        addMessage(botReply, 'bot');
+      } catch (error) {
+        typingIndicator.remove();
+        addMessage('Chatbot is temporarily unavailable. Please try again shortly.', 'bot');
+      } finally {
+        send.disabled = false;
+        input.disabled = false;
+        input.focus();
+      }
     };
 
     send.addEventListener('click', sendMessage);
     input.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !container.classList.contains('d-none')) {
+        closeChat();
+      }
     });
   };
 

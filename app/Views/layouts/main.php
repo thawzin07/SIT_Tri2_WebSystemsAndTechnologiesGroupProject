@@ -22,19 +22,29 @@
 
 <!-- Chatbot Widget -->
 <div id="chatbot-widget" class="chatbot-widget">
-  <div id="chatbot-toggle" class="chatbot-toggle">
-    <span>💬</span>
-  </div>
+  <button id="chatbot-toggle" class="chatbot-toggle" type="button" aria-expanded="false" aria-controls="chatbot-container" aria-label="Open chat assistant">
+    <span>Chat</span>
+  </button>
   <div id="chatbot-container" class="chatbot-container d-none">
     <div class="chatbot-header">
-      <h5>FAQ Chatbot</h5>
-      <button id="chatbot-close" class="btn-close"></button>
+      <div class="chatbot-header-copy">
+        <h5>PulsePoint Assistant</h5>
+        <p>Ask about plans, classes, trainers, and bookings.</p>
+      </div>
+      <div class="chatbot-header-actions">
+        <button id="chatbot-clear" class="chatbot-clear-btn" type="button" aria-label="Clear chat history">New chat</button>
+        <button id="chatbot-close" class="btn-close btn-close-white" type="button" aria-label="Close chat"></button>
+      </div>
     </div>
-    <div id="chatbot-messages" class="chatbot-messages">
-      <div class="message bot">Hi! I'm here to help with your questions. Ask me about memberships, classes, or anything else!</div>
+    <div id="chatbot-messages" class="chatbot-messages"></div>
+    <div class="chatbot-quick-prompts" id="chatbot-quick-prompts" aria-label="Suggested questions">
+      <button type="button" class="chatbot-prompt-btn" data-chatbot-prompt="What membership plans do you offer?">Plans</button>
+      <button type="button" class="chatbot-prompt-btn" data-chatbot-prompt="Who are your trainers and what do they teach?">Trainers</button>
+      <button type="button" class="chatbot-prompt-btn" data-chatbot-prompt="How can I book a class?">Book class</button>
+      <button type="button" class="chatbot-prompt-btn" data-chatbot-prompt="Where are your gym locations?">Locations</button>
     </div>
     <div class="chatbot-input">
-      <input type="text" id="chatbot-input" placeholder="Type your question...">
+      <input type="text" id="chatbot-input" placeholder="Ask your question..." autocomplete="off">
       <button id="chatbot-send" class="btn btn-primary btn-sm">Send</button>
     </div>
   </div>
