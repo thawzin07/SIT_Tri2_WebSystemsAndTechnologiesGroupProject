@@ -1,3 +1,10 @@
+<?php
+/**
+ * Update pages/trainers.php to display trainer photos
+ */
+
+$publicTrainersFile = 'app/Views/pages/trainers.php';
+$viewContent = <<<'HTML'
 <section class="container page-shell">
   <h1 class="section-title">Meet Our Trainers</h1>
   <p class="section-subtitle">Certified trainers with specialties across strength, conditioning, and mobility.</p>
@@ -34,3 +41,7 @@
     <?php endforeach; ?>
   </div>
 </section>
+HTML;
+
+file_put_contents($publicTrainersFile, $viewContent);
+echo "✓ Updated app/Views/pages/trainers.php with photo display\n";

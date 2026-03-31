@@ -1,4 +1,11 @@
 <?php
+/**
+ * Setup script to add trainer photo upload functionality
+ */
+
+// Update TrainerModel to add find method
+$trainerModelCode = <<<'PHP'
+<?php
 
 namespace App\Models;
 
@@ -43,3 +50,15 @@ class TrainerModel extends BaseModel
         $stmt->execute(['id' => $id]);
     }
 }
+PHP;
+
+file_put_contents('app/Models/TrainerModel.php', $trainerModelCode);
+echo "✓ Updated TrainerModel.php\n";
+
+// Show administrator nextSteps
+echo "\nNext steps to complete trainer photo setup:\n";
+echo "1. Update AdminController.php - Add image upload handling methods\n";
+echo "2. Update admin/trainers.php view - Change image_path text input to file input\n";
+echo "3. Update pages/trainers.php view - Add trainer photos to card display\n";
+echo "4. Add CSS styling for trainer cards\n";
+echo "\n✓ Directory already created: public/assets/images/trainers/\n";
