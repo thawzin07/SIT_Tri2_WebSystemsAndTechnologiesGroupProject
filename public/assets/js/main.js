@@ -102,13 +102,22 @@
     const toggle = document.getElementById('chatbot-toggle');
     const container = document.getElementById('chatbot-container');
     const close = document.getElementById('chatbot-close');
+    const clear = document.getElementById('chatbot-clear');
+    const promptBar = document.getElementById('chatbot-quick-prompts');
     const input = document.getElementById('chatbot-input');
     const send = document.getElementById('chatbot-send');
     const messages = document.getElementById('chatbot-messages');
 
-    if (!toggle || !container || !close || !input || !send || !messages) return;
+    if (!toggle || !container || !close || !clear || !promptBar || !input || !send || !messages) return;
     const STORAGE_KEY = 'pulsepoint_chatbot_history_v1';
     const MAX_HISTORY = 60;
+    const DEFAULT_GREETING = "Hi, I'm your PulsePoint assistant. Ask me about plans, classes, trainers, bookings, or locations.";
+
+    const formatTime = (isoTimestamp) => {
+      const date = isoTimestamp ? new Date(isoTimestamp) : new Date();
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
     const loadHistory = () => {
       try {
@@ -116,12 +125,18 @@
         if (!raw) return [];
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed)) return [];
-        return parsed.filter((item) =>
-          item &&
-          (item.sender === 'user' || item.sender === 'bot') &&
-          typeof item.text === 'string' &&
-          item.text.trim() !== ''
-        );
+        return parsed
+          .filter((item) =>
+            item &&
+            (item.sender === 'user' || item.sender === 'bot') &&
+            typeof item.text === 'string' &&
+            item.text.trim() !== ''
+          )
+          .map((item) => ({
+            sender: item.sender,
+            text: item.text,
+            createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString()
+          }));
       } catch (e) {
         return [];
       }
@@ -134,43 +149,101 @@
       }
     };
 
-    const addMessage = (text, sender, persist = true) => {
-      const message = document.createElement('div');
-      message.className = `message ${sender}`;
-      message.textContent = text;
-      messages.appendChild(message);
+    const scrollToBottom = () => {
       messages.scrollTop = messages.scrollHeight;
+    };
+
+    const addMessage = (text, sender, persist = true, createdAt = new Date().toISOString()) => {
+      const row = document.createElement('div');
+      row.className = `message-row ${sender}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message';
+      bubble.textContent = text;
+
+      const meta = document.createElement('div');
+      meta.className = 'message-meta';
+      meta.textContent = `${sender === 'user' ? 'You' : 'PulsePoint'} | ${formatTime(createdAt)}`;
+
+      row.appendChild(bubble);
+      row.appendChild(meta);
+      messages.appendChild(row);
+      scrollToBottom();
 
       if (persist) {
         const history = loadHistory();
-        history.push({ sender, text });
+        history.push({ sender, text, createdAt });
         saveHistory(history);
       }
 
-      return message;
+      return row;
     };
 
     const renderHistory = () => {
       const history = loadHistory();
       messages.innerHTML = '';
       if (history.length === 0) {
-        addMessage("Hi! I'm here to help with your questions. Ask me about memberships, classes, or anything else!", 'bot');
+        addMessage(DEFAULT_GREETING, 'bot');
         return;
       }
 
       history.forEach((item) => {
-        addMessage(item.text, item.sender, false);
+        addMessage(item.text, item.sender, false, item.createdAt);
       });
+    };
+
+    const openChat = () => {
+      container.classList.remove('d-none');
+      toggle.setAttribute('aria-expanded', 'true');
+      input.focus();
+      scrollToBottom();
+    };
+
+    const closeChat = () => {
+      container.classList.add('d-none');
+      toggle.setAttribute('aria-expanded', 'false');
+    };
+
+    const resetChat = () => {
+      saveHistory([]);
+      messages.innerHTML = '';
+      addMessage(DEFAULT_GREETING, 'bot');
+      input.focus();
+    };
+
+    const submitPrompt = (promptText) => {
+      input.value = promptText;
+      sendMessage();
     };
 
     renderHistory();
 
     toggle.addEventListener('click', () => {
-      container.classList.toggle('d-none');
+      if (container.classList.contains('d-none')) {
+        openChat();
+      } else {
+        closeChat();
+      }
     });
 
     close.addEventListener('click', () => {
-      container.classList.add('d-none');
+      closeChat();
+    });
+
+    clear.addEventListener('click', () => {
+      resetChat();
+    });
+
+    promptBar.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.matches('[data-chatbot-prompt]')) return;
+      const promptText = target.getAttribute('data-chatbot-prompt');
+      if (!promptText) return;
+      if (container.classList.contains('d-none')) {
+        openChat();
+      }
+      submitPrompt(promptText);
     });
 
     const sendMessage = async () => {
@@ -229,6 +302,12 @@
       if (e.key === 'Enter') {
         e.preventDefault();
         sendMessage();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !container.classList.contains('d-none')) {
+        closeChat();
       }
     });
   };
