@@ -129,9 +129,13 @@ class PaymentModel extends BaseModel
 
     public function billingHistoryForUser(int $userId): array
     {
-        $stmt = $this->db->prepare('SELECT p.*, mp.name AS plan_name
+        $stmt = $this->db->prepare('SELECT p.*, mp.name AS plan_name,
+                i.id AS invoice_id,
+                i.invoice_no,
+                i.pdf_path AS invoice_pdf_path
             FROM payments p
             JOIN membership_plans mp ON mp.id = p.plan_id
+            LEFT JOIN invoices i ON i.payment_id = p.id
             WHERE p.user_id = :user_id
             ORDER BY p.id DESC');
         $stmt->execute(['user_id' => $userId]);

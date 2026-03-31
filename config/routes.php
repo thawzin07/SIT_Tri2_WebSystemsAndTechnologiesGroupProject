@@ -28,6 +28,7 @@ return [
     ['POST', '/member/membership/renew', 'MemberController', 'renew', 'member'],
     ['POST', '/member/membership/cancel', 'MemberController', 'cancelMembership', 'member'],
     ['GET', '/member/bookings', 'MemberController', 'bookings', 'member'],
+    ['GET', '/member/invoices/download', 'MemberController', 'downloadInvoice', 'member'],
     ['POST', '/member/bookings/book', 'MemberController', 'bookClass', 'member'],
     ['POST', '/member/bookings/cancel', 'MemberController', 'cancelBooking', 'member'],
     ['POST', '/member/bookings/waitlist/cancel', 'MemberController', 'cancelWaitlist', 'member'],

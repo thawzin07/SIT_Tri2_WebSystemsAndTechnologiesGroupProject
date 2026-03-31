@@ -231,4 +231,36 @@ class MemberController extends Controller
         flash($cancelled ? 'success' : 'error', $cancelled ? 'Removed from waitlist.' : 'Unable to remove waitlist entry.');
         redirect('/member/bookings');
     }
+
+    public function downloadInvoice(): void
+    {
+        $this->requireMember();
+
+        $invoiceId = (int) ($_GET['invoice_id'] ?? 0);
+        if ($invoiceId < 1) {
+            flash('error', 'Invalid invoice selection.');
+            redirect('/member/dashboard#billing');
+        }
+
+        $invoiceModel = new \App\Models\InvoiceModel();
+        $invoice = $invoiceModel->findOwnedById($invoiceId, (int) current_user()['id']);
+        if (!$invoice) {
+            flash('error', 'Invoice not found.');
+            redirect('/member/dashboard#billing');
+        }
+
+        $relativePath = ltrim((string) ($invoice['pdf_path'] ?? ''), '/');
+        $baseDir = realpath(dirname(__DIR__, 2) . '/public');
+        $absolutePath = realpath(dirname(__DIR__, 2) . '/public/' . $relativePath);
+        if ($baseDir === false || $absolutePath === false || strpos($absolutePath, $baseDir) !== 0 || !is_file($absolutePath)) {
+            flash('error', 'Invoice file is unavailable.');
+            redirect('/member/dashboard#billing');
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . basename($absolutePath) . '"');
+        header('Content-Length: ' . (string) filesize($absolutePath));
+        readfile($absolutePath);
+        exit;
+    }
 }

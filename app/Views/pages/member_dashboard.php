@@ -120,7 +120,11 @@
                       <button class="btn btn-sm btn-outline-primary" type="submit">Resume</button>
                     </form>
                   <?php else: ?>
-                    <span class="text-muted small">Ready for invoice</span>
+                    <?php if (!empty($payment['invoice_id'])): ?>
+                      <a class="btn btn-sm btn-outline-secondary" href="/member/invoices/download?invoice_id=<?= (int) $payment['invoice_id'] ?>">Download Invoice</a>
+                    <?php else: ?>
+                      <span class="text-muted small">Invoice processing</span>
+                    <?php endif; ?>
                   <?php endif; ?>
                 </td>
               </tr>

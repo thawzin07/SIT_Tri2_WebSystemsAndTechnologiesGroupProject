@@ -12,6 +12,7 @@ $requiredRoutes = [
     ['POST', '/member/bookings/cancel', 'MemberController', 'cancelBooking', 'member'],
     ['POST', '/member/payments/checkout', 'PaymentController', 'checkout', 'member'],
     ['POST', '/member/payments/resume', 'PaymentController', 'resumeCheckout', 'member'],
+    ['GET', '/member/invoices/download', 'MemberController', 'downloadInvoice', 'member'],
     ['POST', '/webhooks/stripe', 'PaymentController', 'stripeWebhook', 'public'],
 ];
 

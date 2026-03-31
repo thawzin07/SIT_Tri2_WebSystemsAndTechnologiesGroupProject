@@ -7,6 +7,7 @@ use App\Models\MembershipModel;
 use App\Models\MembershipPlanModel;
 use App\Models\NotificationLogModel;
 use App\Models\PaymentModel;
+use App\Models\UserModel;
 use DateTime;
 use PDO;
 use RuntimeException;
@@ -19,6 +20,8 @@ class PaymentService
     private MembershipModel $membershipModel;
     private MembershipPlanModel $planModel;
     private NotificationLogModel $notificationLogModel;
+    private UserModel $userModel;
+    private InvoiceService $invoiceService;
     private StripeGateway $stripe;
     private array $config;
 
@@ -29,6 +32,8 @@ class PaymentService
         $this->membershipModel = new MembershipModel();
         $this->planModel = new MembershipPlanModel();
         $this->notificationLogModel = new NotificationLogModel();
+        $this->userModel = new UserModel();
+        $this->invoiceService = new InvoiceService();
 
         $this->config = config('payments');
         $stripeConfig = $this->config['stripe'] ?? [];
@@ -180,7 +185,8 @@ class PaymentService
                 $payment['membership_id'] = $membershipId;
             }
 
-            $this->queueNotificationHooks($payment);
+            $invoice = $this->invoiceService->ensureInvoiceForPayment($payment);
+            $this->queueNotificationHooks($payment, $invoice);
             $this->db->commit();
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) {
@@ -294,21 +300,27 @@ class PaymentService
         return $this->membershipModel->create($userId, $planId, $startYmd, $endYmd, 'active');
     }
 
-    private function queueNotificationHooks(array $payment): void
+    private function queueNotificationHooks(array $payment, array $invoice): void
     {
+        $user = $this->userModel->findWithRole((int) $payment['user_id']);
+        $emailTarget = $user['email'] ?? 'member_email_placeholder';
+        $telegramTarget = $user['phone'] ?? 'member_telegram_placeholder';
+
         $payload = [
             'payment_id' => (int) $payment['id'],
             'plan_id' => (int) $payment['plan_id'],
             'payment_type' => (string) $payment['payment_type'],
             'amount' => (float) $payment['amount'],
             'currency' => (string) $payment['currency'],
+            'invoice_no' => (string) ($invoice['invoice_no'] ?? ''),
+            'invoice_pdf_path' => (string) ($invoice['pdf_path'] ?? ''),
         ];
 
         $this->notificationLogModel->queue(
             (int) $payment['user_id'],
             'email',
             'payment_success',
-            'member_email_placeholder',
+            (string) $emailTarget,
             $payload
         );
 
@@ -317,7 +329,23 @@ class PaymentService
             (int) $payment['user_id'],
             'telegram',
             $eventType,
-            'member_telegram_placeholder',
+            (string) $telegramTarget,
+            $payload
+        );
+
+        $this->notificationLogModel->queue(
+            (int) $payment['user_id'],
+            'email',
+            'invoice_sent',
+            (string) $emailTarget,
+            $payload
+        );
+
+        $this->notificationLogModel->queue(
+            (int) $payment['user_id'],
+            'telegram',
+            'invoice_sent',
+            (string) $telegramTarget,
             $payload
         );
     }
