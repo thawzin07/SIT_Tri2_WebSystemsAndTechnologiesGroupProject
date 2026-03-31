@@ -22,7 +22,7 @@ class MemberController extends Controller
         $user = current_user();
         $membershipModel = new MembershipModel();
         $bookingModel = new BookingModel();
-        $classModel = new GymClassModel();
+        $waitlistModel = new ClassWaitlistModel();
         $paymentModel = new PaymentModel();
         $membership = $membershipModel->currentForUser((int) $user['id']);
 
@@ -47,7 +47,7 @@ class MemberController extends Controller
             'membership' => $membership,
             'history' => $membershipModel->historyForUser((int) $user['id']),
             'bookings' => $bookingModel->userBookings((int) $user['id']),
-            'classes' => $classModel->upcomingActive(),
+            'waitlistEntries' => $waitlistModel->userWaitingEntries((int) $user['id']),
             'billingHistory' => $paymentModel->billingHistoryForUser((int) $user['id']),
             'pendingPayment' => $paymentModel->findLatestPendingForUser((int) $user['id']),
             'failedPayment' => $paymentModel->findRecentFailedForUser((int) $user['id']),
@@ -169,11 +169,12 @@ class MemberController extends Controller
     {
         $this->requireMember();
         verify_csrf();
+        $redirectTo = $this->resolveRedirectTarget('/member/bookings');
 
         $classId = (int) ($_POST['class_id'] ?? 0);
         if ($classId < 1) {
             flash('error', 'Invalid class selection.');
-            redirect('/member/bookings');
+            redirect($redirectTo);
         }
 
         $status = (new BookingService())->bookOrWaitlist((int) current_user()['id'], $classId);
@@ -190,18 +191,19 @@ class MemberController extends Controller
             flash('error', 'Class not available.');
         }
 
-        redirect('/member/bookings');
+        redirect($redirectTo);
     }
 
     public function cancelBooking(): void
     {
         $this->requireMember();
         verify_csrf();
+        $redirectTo = $this->resolveRedirectTarget('/member/bookings');
 
         $bookingId = (int) ($_POST['booking_id'] ?? 0);
         if ($bookingId < 1) {
             flash('error', 'Invalid booking selection.');
-            redirect('/member/bookings');
+            redirect($redirectTo);
         }
 
         $status = (new BookingService())->cancelBookingAndPromote((int) current_user()['id'], $bookingId);
@@ -213,22 +215,44 @@ class MemberController extends Controller
             flash('error', 'Unable to cancel this booking.');
         }
 
-        redirect('/member/bookings');
+        redirect($redirectTo);
     }
 
     public function cancelWaitlist(): void
     {
         $this->requireMember();
         verify_csrf();
+        $redirectTo = $this->resolveRedirectTarget('/member/bookings');
 
         $waitlistId = (int) ($_POST['waitlist_id'] ?? 0);
         if ($waitlistId < 1) {
             flash('error', 'Invalid waitlist entry.');
-            redirect('/member/bookings');
+            redirect($redirectTo);
         }
 
         $cancelled = (new ClassWaitlistModel())->cancelByMember($waitlistId, (int) current_user()['id']);
         flash($cancelled ? 'success' : 'error', $cancelled ? 'Removed from waitlist.' : 'Unable to remove waitlist entry.');
-        redirect('/member/bookings');
+        redirect($redirectTo);
+    }
+
+    private function resolveRedirectTarget(string $defaultPath): string
+    {
+        $target = trim((string) ($_POST['redirect_to'] ?? ''));
+        if ($target === '') {
+            return $defaultPath;
+        }
+
+        $allowedPaths = [
+            '/member/bookings',
+            '/member/dashboard',
+            '/schedule',
+        ];
+
+        $path = parse_url($target, PHP_URL_PATH);
+        if (!is_string($path) || !in_array($path, $allowedPaths, true)) {
+            return $defaultPath;
+        }
+
+        return $target;
     }
 }
