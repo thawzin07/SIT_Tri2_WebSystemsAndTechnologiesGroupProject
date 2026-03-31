@@ -6,6 +6,8 @@ use PHPMailer\PHPMailer\Exception;
 
 class NotificationLogModel extends BaseModel
 {
+    private $telegramBotToken;
+
     public function queue(int $userId, string $channel, string $eventType, string $target, array $payload = []): void
     {
         $stmt = $this->db->prepare('INSERT INTO notification_logs
@@ -22,7 +24,11 @@ class NotificationLogModel extends BaseModel
         ]);
     }
 
-    private $telegramBotToken = '8782193125:AAGeC6ehNJPjBxg2dzlaUE7F-R6Ht5l4k9k'; 
+    public function __construct()
+    {
+        parent::__construct();
+        $this->telegramBotToken = $_ENV['TELEGRAM_BOT_TOKEN'];
+    }
 
     public function processQueue()
     {
