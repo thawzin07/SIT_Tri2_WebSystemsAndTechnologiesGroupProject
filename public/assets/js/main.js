@@ -106,37 +106,64 @@
     const send = document.getElementById('chatbot-send');
     const messages = document.getElementById('chatbot-messages');
 
-    if (!toggle || !container) return;
+    if (!toggle || !container || !close || !input || !send || !messages) return;
+    const STORAGE_KEY = 'pulsepoint_chatbot_history_v1';
+    const MAX_HISTORY = 60;
 
-    const faqData = {
-      'pause membership': 'This demo system supports renew and cancel flows. Pause can be an optional extension.',
-      'book classes': 'Yes. Members can reserve class slots on the bookings dashboard.',
-      'beginners': 'Absolutely. Programs are structured for all levels.',
-      'membership': 'We offer various membership plans. Check our plans page for details.',
-      'classes': 'We have a variety of classes. Visit our schedule page to see available classes.',
-      'trainers': 'Our trainers are experienced professionals. Meet them on the trainers page.',
-      'locations': 'We have multiple locations. Find them on the locations page.',
-      'contact': 'You can contact us through the contact page.',
-      'default': 'I\'m sorry, I don\'t have information on that. Please check our FAQ page or contact us directly.'
+    const loadHistory = () => {
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((item) =>
+          item &&
+          (item.sender === 'user' || item.sender === 'bot') &&
+          typeof item.text === 'string' &&
+          item.text.trim() !== ''
+        );
+      } catch (e) {
+        return [];
+      }
     };
 
-    const addMessage = (text, sender) => {
+    const saveHistory = (history) => {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
+      } catch (e) {
+      }
+    };
+
+    const addMessage = (text, sender, persist = true) => {
       const message = document.createElement('div');
       message.className = `message ${sender}`;
       message.textContent = text;
       messages.appendChild(message);
       messages.scrollTop = messages.scrollHeight;
+
+      if (persist) {
+        const history = loadHistory();
+        history.push({ sender, text });
+        saveHistory(history);
+      }
+
+      return message;
     };
 
-    const getResponse = (query) => {
-      const lowerQuery = query.toLowerCase();
-      for (const key in faqData) {
-        if (lowerQuery.includes(key)) {
-          return faqData[key];
-        }
+    const renderHistory = () => {
+      const history = loadHistory();
+      messages.innerHTML = '';
+      if (history.length === 0) {
+        addMessage("Hi! I'm here to help with your questions. Ask me about memberships, classes, or anything else!", 'bot');
+        return;
       }
-      return faqData['default'];
+
+      history.forEach((item) => {
+        addMessage(item.text, item.sender, false);
+      });
     };
+
+    renderHistory();
 
     toggle.addEventListener('click', () => {
       container.classList.toggle('d-none');
@@ -146,20 +173,63 @@
       container.classList.add('d-none');
     });
 
-    const sendMessage = () => {
+    const sendMessage = async () => {
       const text = input.value.trim();
       if (!text) return;
+
       addMessage(text, 'user');
       input.value = '';
-      setTimeout(() => {
-        const response = getResponse(text);
-        addMessage(response, 'bot');
-      }, 500);
+
+      send.disabled = true;
+      input.disabled = true;
+
+      const typingIndicator = addMessage('Typing...', 'bot', false);
+
+      try {
+        const response = await fetch('/api/chatbot', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ message: text })
+        });
+
+        let payload = {};
+        try {
+          payload = await response.json();
+        } catch (e) {
+          payload = {};
+        }
+
+        typingIndicator.remove();
+
+        if (!response.ok) {
+          const fallback = payload.error || 'I can only help with PulsePoint Fitness website topics. Please ask about memberships, classes, trainers, locations, bookings, or contact details.';
+          addMessage(fallback, 'bot');
+          return;
+        }
+
+        const botReply = typeof payload.reply === 'string' && payload.reply.trim() !== ''
+          ? payload.reply
+          : 'I can only help with PulsePoint Fitness website topics. Please ask about memberships, classes, trainers, locations, bookings, or contact details.';
+
+        addMessage(botReply, 'bot');
+      } catch (error) {
+        typingIndicator.remove();
+        addMessage('Chatbot is temporarily unavailable. Please try again shortly.', 'bot');
+      } finally {
+        send.disabled = false;
+        input.disabled = false;
+        input.focus();
+      }
     };
 
     send.addEventListener('click', sendMessage);
     input.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendMessage();
+      }
     });
   };
 
