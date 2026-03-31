@@ -1,6 +1,9 @@
 <section class="container page-shell">
   <h1 class="section-title">My Profile</h1>
   <p class="section-subtitle">Keep your details up to date so trainers and staff can reach you when needed.</p>
+  <div class="mb-3">
+    <a class="btn btn-outline-secondary btn-sm" href="/member/dashboard">Return to Dashboard</a>
+  </div>
   <div class="row">
     <div class="col-lg-6">
       <form action="/member/profile" method="post" class="card p-4" novalidate>

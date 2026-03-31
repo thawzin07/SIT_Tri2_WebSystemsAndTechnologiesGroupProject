@@ -368,6 +368,39 @@ main {
   box-shadow: var(--pp-shadow-1);
 }
 
+.member-quick-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.member-profile-avatar {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #dbeafe;
+  box-shadow: var(--pp-shadow-1);
+  margin-bottom: 0.8rem;
+}
+
+.member-profile-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.member-profile-email {
+  color: var(--pp-muted);
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
 .pp-fade-in {
   animation: ppFadeIn 260ms ease-out;
 }
