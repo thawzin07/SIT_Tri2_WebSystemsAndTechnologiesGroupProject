@@ -161,21 +161,61 @@ class AdminController extends Controller
     public function createTrainer(): void
     {
         $this->requireAdmin(); verify_csrf();
-        (new TrainerModel())->create($this->trainerPayload());
+        $payload = $this->trainerPayload();
+        if (isset($_FILES['image']) && is_array($_FILES['image'])) {
+            $errorCode = (int) ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($errorCode !== UPLOAD_ERR_NO_FILE) {
+                try {
+                    $payload['image_path'] = $this->storeTrainerImage($_FILES['image']);
+                } catch (\RuntimeException $ex) {
+                    flash('error', $ex->getMessage());
+                    redirect('/admin/trainers');
+                }
+            }
+        }
+        (new TrainerModel())->create($payload);
         flash('success', 'Trainer created.'); redirect('/admin/trainers');
     }
 
     public function updateTrainer(): void
     {
         $this->requireAdmin(); verify_csrf();
-        (new TrainerModel())->update((int) $_POST['id'], $this->trainerPayload());
+        $id = (int) $_POST['id'];
+        $trainerModel = new TrainerModel();
+        $existing = $trainerModel->find($id);
+        if (!$existing) {
+            flash('error', 'Trainer not found.');
+            redirect('/admin/trainers');
+        }
+        
+        $payload = $this->trainerPayload();
+        $payload['image_path'] = (string) ($existing['image_path'] ?? '');
+        
+        if (isset($_FILES['image']) && is_array($_FILES['image'])) {
+            $errorCode = (int) ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($errorCode !== UPLOAD_ERR_NO_FILE) {
+                try {
+                    $payload['image_path'] = $this->storeTrainerImage($_FILES['image'], (string) ($existing['image_path'] ?? ''));
+                } catch (\RuntimeException $ex) {
+                    flash('error', $ex->getMessage());
+                    redirect('/admin/trainers');
+                }
+            }
+        }
+        
+        $trainerModel->update($id, $payload);
         flash('success', 'Trainer updated.'); redirect('/admin/trainers');
     }
 
     public function deleteTrainer(): void
     {
         $this->requireAdmin(); verify_csrf();
-        (new TrainerModel())->delete((int) $_POST['id']);
+        $id = (int) $_POST['id'];
+        $trainer = (new TrainerModel())->find($id);
+        if ($trainer) {
+            $this->removeTrainerImage((string) ($trainer['image_path'] ?? ''));
+        }
+        (new TrainerModel())->delete($id);
         flash('success', 'Trainer deleted.'); redirect('/admin/trainers');
     }
 
@@ -185,7 +225,7 @@ class AdminController extends Controller
             'name' => trim((string) $_POST['name']),
             'specialty' => trim((string) $_POST['specialty']),
             'bio' => trim((string) $_POST['bio']),
-            'image_path' => trim((string) ($_POST['image_path'] ?? '')),
+            'image_path' => '',
             'status' => ($_POST['status'] ?? 'inactive') === 'active' ? 'active' : 'inactive',
         ];
     }
@@ -246,21 +286,62 @@ class AdminController extends Controller
     public function createLocation(): void
     {
         $this->requireAdmin(); verify_csrf();
-        (new LocationModel())->create($this->locationPayload());
+        $payload = $this->locationPayload();
+        if (isset($_FILES['image']) && is_array($_FILES['image'])) {
+            $errorCode = (int) ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($errorCode !== UPLOAD_ERR_NO_FILE) {
+                try {
+                    $payload['image_path'] = $this->storeLocationImage($_FILES['image']);
+                } catch (\RuntimeException $ex) {
+                    flash('error', $ex->getMessage());
+                    redirect('/admin/locations');
+                }
+            }
+        }
+
+        (new LocationModel())->create($payload);
         flash('success', 'Location created.'); redirect('/admin/locations');
     }
 
     public function updateLocation(): void
     {
         $this->requireAdmin(); verify_csrf();
-        (new LocationModel())->update((int) $_POST['id'], $this->locationPayload());
+        $id = (int) $_POST['id'];
+        $locationModel = new LocationModel();
+        $existing = $locationModel->find($id);
+        if (!$existing) {
+            flash('error', 'Location not found.');
+            redirect('/admin/locations');
+        }
+
+        $payload = $this->locationPayload();
+        $payload['image_path'] = (string) ($existing['image_path'] ?? '');
+
+        if (isset($_FILES['image']) && is_array($_FILES['image'])) {
+            $errorCode = (int) ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($errorCode !== UPLOAD_ERR_NO_FILE) {
+                try {
+                    $payload['image_path'] = $this->storeLocationImage($_FILES['image'], (string) ($existing['image_path'] ?? ''));
+                } catch (\RuntimeException $ex) {
+                    flash('error', $ex->getMessage());
+                    redirect('/admin/locations');
+                }
+            }
+        }
+
+        $locationModel->update($id, $payload);
         flash('success', 'Location updated.'); redirect('/admin/locations');
     }
 
     public function deleteLocation(): void
     {
         $this->requireAdmin(); verify_csrf();
-        (new LocationModel())->delete((int) $_POST['id']);
+        $id = (int) $_POST['id'];
+        $location = (new LocationModel())->find($id);
+        if ($location) {
+            $this->removeLocationImage((string) ($location['image_path'] ?? ''));
+        }
+        (new LocationModel())->delete($id);
         flash('success', 'Location deleted.'); redirect('/admin/locations');
     }
 
@@ -271,6 +352,7 @@ class AdminController extends Controller
             'address' => trim((string) $_POST['address']),
             'phone' => trim((string) $_POST['phone']),
             'opening_hours' => trim((string) $_POST['opening_hours']),
+            'image_path' => '',
             'status' => ($_POST['status'] ?? 'inactive') === 'active' ? 'active' : 'inactive',
         ];
     }
@@ -308,6 +390,124 @@ class AdminController extends Controller
         $this->requireAdmin(); verify_csrf();
         (new ContactMessageModel())->delete((int) $_POST['id']);
         flash('success', 'Message deleted.'); redirect('/admin/messages');
+    }
+
+    private function storeTrainerImage(array $file, string $existingImagePath = ''): string
+    {
+        $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('Unable to upload image. Please try a different file.');
+        }
+
+        $size = (int) ($file['size'] ?? 0);
+        if ($size < 1 || $size > (5 * 1024 * 1024)) {
+            throw new \RuntimeException('Trainer image must be under 5MB.');
+        }
+
+        $tmpName = (string) ($file['tmp_name'] ?? '');
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new \RuntimeException('Invalid upload source.');
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = (string) $finfo->file($tmpName);
+        $allowed = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+        ];
+
+        if (!isset($allowed[$mimeType])) {
+            throw new \RuntimeException('Only JPG, PNG, WEBP, or GIF images are allowed.');
+        }
+
+        $relativeDirectory = '/assets/images/trainers';
+        $absoluteDirectory = dirname(__DIR__, 2) . '/public' . $relativeDirectory;
+        if (!is_dir($absoluteDirectory) && !mkdir($absoluteDirectory, 0775, true) && !is_dir($absoluteDirectory)) {
+            throw new \RuntimeException('Unable to prepare trainer image directory.');
+        }
+
+        $fileName = 'trainer-' . date('YmdHis') . '-' . bin2hex(random_bytes(3)) . '.' . $allowed[$mimeType];
+        $absolutePath = $absoluteDirectory . '/' . $fileName;
+        if (!move_uploaded_file($tmpName, $absolutePath)) {
+            throw new \RuntimeException('Failed to save uploaded image.');
+        }
+
+        $this->removeTrainerImage($existingImagePath);
+
+        return $relativeDirectory . '/' . $fileName;
+    }
+
+    private function removeTrainerImage(string $relativePath): void
+    {
+        if ($relativePath === '' || !str_starts_with($relativePath, '/assets/images/trainers/')) {
+            return;
+        }
+
+        $absolutePath = dirname(__DIR__, 2) . '/public' . $relativePath;
+        if (is_file($absolutePath)) {
+            @unlink($absolutePath);
+        }
+    }
+
+    private function storeLocationImage(array $file, string $existingImagePath = ''): string
+    {
+        $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('Unable to upload image. Please try a different file.');
+        }
+
+        $size = (int) ($file['size'] ?? 0);
+        if ($size < 1 || $size > (5 * 1024 * 1024)) {
+            throw new \RuntimeException('Location image must be under 5MB.');
+        }
+
+        $tmpName = (string) ($file['tmp_name'] ?? '');
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new \RuntimeException('Invalid upload source.');
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = (string) $finfo->file($tmpName);
+        $allowed = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+        ];
+
+        if (!isset($allowed[$mimeType])) {
+            throw new \RuntimeException('Only JPG, PNG, WEBP, or GIF images are allowed.');
+        }
+
+        $relativeDirectory = '/assets/images/locations';
+        $absoluteDirectory = dirname(__DIR__, 2) . '/public' . $relativeDirectory;
+        if (!is_dir($absoluteDirectory) && !mkdir($absoluteDirectory, 0775, true) && !is_dir($absoluteDirectory)) {
+            throw new \RuntimeException('Unable to prepare location image directory.');
+        }
+
+        $fileName = 'location-' . date('YmdHis') . '-' . bin2hex(random_bytes(3)) . '.' . $allowed[$mimeType];
+        $absolutePath = $absoluteDirectory . '/' . $fileName;
+        if (!move_uploaded_file($tmpName, $absolutePath)) {
+            throw new \RuntimeException('Failed to save uploaded image.');
+        }
+
+        $this->removeLocationImage($existingImagePath);
+
+        return $relativeDirectory . '/' . $fileName;
+    }
+
+    private function removeLocationImage(string $relativePath): void
+    {
+        if ($relativePath === '' || !str_starts_with($relativePath, '/assets/images/locations/')) {
+            return;
+        }
+
+        $absolutePath = dirname(__DIR__, 2) . '/public' . $relativePath;
+        if (is_file($absolutePath)) {
+            @unlink($absolutePath);
+        }
     }
 }
 

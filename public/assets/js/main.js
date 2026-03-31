@@ -43,6 +43,207 @@
     });
   };
 
+  const enhanceProfileImageUpload = () => {
+    const profileImageInput = document.getElementById("profile_image");
+    const profileForm = document.getElementById("profileForm");
+    if (!profileImageInput || !profileForm) {
+      return;
+    }
+
+    profileImageInput.addEventListener("change", (event) => {
+      if (event.target.files && event.target.files.length > 0) {
+        profileForm.submit();
+      }
+    });
+  };
+
+  const enhanceTrainerImagePreview = () => {
+    const imageInputs = document.querySelectorAll(".trainer-image-input[data-preview-target]");
+    if (!imageInputs.length) {
+      return;
+    }
+
+    imageInputs.forEach((input) => {
+      input.addEventListener("change", (event) => {
+        const targetSelector = input.getAttribute("data-preview-target");
+        const previewRoot = targetSelector ? document.querySelector(targetSelector) : null;
+        if (!previewRoot) {
+          return;
+        }
+
+        const file = event.target.files && event.target.files[0];
+        const emptyText = previewRoot.getAttribute("data-empty-text") || "-";
+        if (!file) {
+          previewRoot.innerHTML = `<span class="trainer-photo-placeholder">${emptyText}</span>`;
+          return;
+        }
+
+        if (!file.type.startsWith("image/")) {
+          previewRoot.innerHTML = `<span class="trainer-photo-placeholder">${emptyText}</span>`;
+          return;
+        }
+
+        const fileReader = new FileReader();
+        fileReader.onload = () => {
+          previewRoot.innerHTML = "";
+          const image = document.createElement("img");
+          image.src = String(fileReader.result || "");
+          image.alt = "Trainer photo preview";
+          image.className = "trainer-photo-img";
+          previewRoot.appendChild(image);
+        };
+        fileReader.readAsDataURL(file);
+      });
+    });
+  };
+
+  const enhanceLocationImagePreview = () => {
+    const imageInputs = document.querySelectorAll(".location-image-input[data-preview-target]");
+    if (!imageInputs.length) {
+      return;
+    }
+
+    imageInputs.forEach((input) => {
+      input.addEventListener("change", (event) => {
+        const targetSelector = input.getAttribute("data-preview-target");
+        const previewRoot = targetSelector ? document.querySelector(targetSelector) : null;
+        if (!previewRoot) {
+          return;
+        }
+
+        const file = event.target.files && event.target.files[0];
+        const emptyText = previewRoot.getAttribute("data-empty-text") || "-";
+        if (!file || !file.type.startsWith("image/")) {
+          previewRoot.innerHTML = `<span class="location-photo-placeholder">${emptyText}</span>`;
+          return;
+        }
+
+        const fileReader = new FileReader();
+        fileReader.onload = () => {
+          previewRoot.innerHTML = "";
+          const image = document.createElement("img");
+          image.src = String(fileReader.result || "");
+          image.alt = "Location photo preview";
+          image.className = "location-photo-img";
+          previewRoot.appendChild(image);
+        };
+        fileReader.readAsDataURL(file);
+      });
+    });
+  };
+
+  const enhanceTrainerUnsavedChanges = () => {
+    const trainerTable = document.querySelector(".table-responsive table");
+    if (!trainerTable || !document.querySelector(".trainer-actions-cell")) {
+      return;
+    }
+
+    const trackedSelector = 'input[name="name"], input[name="specialty"], input[name="bio"], select[name="status"], input[name="image"]';
+    let hasUnsavedChanges = false;
+    let allowNavigation = false;
+
+    const markDirty = (target) => {
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (!target.matches(trackedSelector)) {
+        return;
+      }
+      if (!target.closest("tbody")) {
+        return;
+      }
+      hasUnsavedChanges = true;
+    };
+
+    document.addEventListener("input", (event) => {
+      markDirty(event.target);
+    }, true);
+
+    document.addEventListener("change", (event) => {
+      markDirty(event.target);
+    }, true);
+
+    document.addEventListener("submit", (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) {
+        return;
+      }
+
+      const action = form.getAttribute("action") || "";
+      const isTrainerAction = action.includes("/admin/trainers/update")
+        || action.includes("/admin/trainers/create")
+        || action.includes("/admin/trainers/delete");
+
+      if (isTrainerAction) {
+        allowNavigation = true;
+      }
+    }, true);
+
+    window.addEventListener("beforeunload", (event) => {
+      if (allowNavigation || !hasUnsavedChanges) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = "";
+    });
+  };
+
+  const enhanceLocationUnsavedChanges = () => {
+    const locationTable = document.querySelector(".table-responsive table");
+    if (!locationTable || !document.querySelector(".location-actions-cell")) {
+      return;
+    }
+
+    const trackedSelector = 'input[name="name"], input[name="address"], input[name="phone"], input[name="opening_hours"], select[name="status"], input[name="image"]';
+    let hasUnsavedChanges = false;
+    let allowNavigation = false;
+
+    const markDirty = (target) => {
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (!target.matches(trackedSelector)) {
+        return;
+      }
+      if (!target.closest("tbody")) {
+        return;
+      }
+      hasUnsavedChanges = true;
+    };
+
+    document.addEventListener("input", (event) => {
+      markDirty(event.target);
+    }, true);
+
+    document.addEventListener("change", (event) => {
+      markDirty(event.target);
+    }, true);
+
+    document.addEventListener("submit", (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) {
+        return;
+      }
+
+      const action = form.getAttribute("action") || "";
+      const isLocationAction = action.includes("/admin/locations/update")
+        || action.includes("/admin/locations/create")
+        || action.includes("/admin/locations/delete");
+
+      if (isLocationAction) {
+        allowNavigation = true;
+      }
+    }, true);
+
+    window.addEventListener("beforeunload", (event) => {
+      if (allowNavigation || !hasUnsavedChanges) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = "";
+    });
+  };
+
   const enhanceResponsiveTables = () => {
     const wrappers = document.querySelectorAll(".table-responsive");
     wrappers.forEach((wrapper) => {
@@ -318,4 +519,9 @@
   enhanceAdminFilters();
   animateCards();
   enhanceChatbot();
+  enhanceProfileImageUpload();
+  enhanceTrainerImagePreview();
+  enhanceLocationImagePreview();
+  enhanceTrainerUnsavedChanges();
+  enhanceLocationUnsavedChanges();
 })();

@@ -27,16 +27,56 @@
           <li class="nav-item"><a class="btn btn-brand btn-sm" href="/register">Join Now</a></li>
         <?php else: ?>
           <?php if (($user['role_name'] ?? '') === 'admin'): ?>
-            <li class="nav-item"><a class="btn btn-outline-secondary btn-sm" href="/admin/dashboard">Admin</a></li>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle btn btn-outline-secondary btn-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Admin</a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="/admin/dashboard">Dashboard</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <form action="/logout" method="post" class="d-inline w-100">
+                    <?= csrf_input() ?>
+                    <button type="submit" class="dropdown-item">Logout</button>
+                  </form>
+                </li>
+              </ul>
+            </li>
           <?php else: ?>
             <li class="nav-item"><a class="btn btn-outline-secondary btn-sm" href="/member/dashboard">Dashboard</a></li>
           <?php endif; ?>
-          <li class="nav-item">
-            <form action="/logout" method="post" class="d-inline">
-              <?= csrf_input() ?>
-              <button class="btn btn-sm btn-danger" type="submit">Logout</button>
-            </form>
-          </li>
+          <?php if ((($user['role_name'] ?? '') === 'member')): ?>
+            <?php
+              $imagePath = (string) ($user['profile_image_path'] ?? '');
+              $hasProfileImage = $imagePath !== '';
+              $nameWords = preg_split('/\s+/', trim((string) ($user['full_name'] ?? ''))) ?: [];
+              $initials = '';
+              foreach (array_slice($nameWords, 0, 2) as $word) {
+                  $initials .= strtoupper(substr((string) $word, 0, 1));
+              }
+              $initials = $initials !== '' ? $initials : 'U';
+            ?>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle profile-dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="profile-dropdown-badge">
+                  <?php if ($hasProfileImage): ?>
+                    <img src="<?= e($imagePath) ?>" alt="Profile photo" class="profile-dropdown-image">
+                  <?php else: ?>
+                    <div class="profile-dropdown-initials"><?= e($initials) ?></div>
+                  <?php endif; ?>
+                </span>
+                <span class="profile-dropdown-name d-none d-lg-inline"><?= e($user['full_name']) ?></span>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="/member/profile">Edit Profile</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <form action="/logout" method="post" class="d-inline w-100">
+                    <?= csrf_input() ?>
+                    <button type="submit" class="dropdown-item">Logout</button>
+                  </form>
+                </li>
+              </ul>
+            </li>
+          <?php endif; ?>
         <?php endif; ?>
       </ul>
     </div>

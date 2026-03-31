@@ -19,15 +19,24 @@ class LocationModel extends BaseModel
 
     public function create(array $data): void
     {
-        $stmt = $this->db->prepare('INSERT INTO gym_locations (name, address, phone, opening_hours, status, created_at, updated_at) VALUES (:name, :address, :phone, :opening_hours, :status, NOW(), NOW())');
+        $stmt = $this->db->prepare('INSERT INTO gym_locations (name, address, phone, opening_hours, image_path, status, created_at, updated_at) VALUES (:name, :address, :phone, :opening_hours, :image_path, :status, NOW(), NOW())');
         $stmt->execute($data);
     }
 
     public function update(int $id, array $data): void
     {
         $data['id'] = $id;
-        $stmt = $this->db->prepare('UPDATE gym_locations SET name = :name, address = :address, phone = :phone, opening_hours = :opening_hours, status = :status, updated_at = NOW() WHERE id = :id');
+        $stmt = $this->db->prepare('UPDATE gym_locations SET name = :name, address = :address, phone = :phone, opening_hours = :opening_hours, image_path = :image_path, status = :status, updated_at = NOW() WHERE id = :id');
         $stmt->execute($data);
+    }
+
+    public function find(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM gym_locations WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
     }
 
     public function delete(int $id): void

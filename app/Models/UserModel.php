@@ -37,6 +37,22 @@ class UserModel extends BaseModel
         $stmt->execute(['full_name' => $fullName, 'phone' => $phone, 'id' => $id]);
     }
 
+    public function updateBasicWithImage(int $id, string $fullName, string $phone, ?string $profileImagePath): void
+    {
+        $stmt = $this->db->prepare('UPDATE users
+            SET full_name = :full_name,
+                phone = :phone,
+                profile_image_path = :profile_image_path,
+                updated_at = NOW()
+            WHERE id = :id');
+        $stmt->execute([
+            'full_name' => $fullName,
+            'phone' => $phone,
+            'profile_image_path' => $profileImagePath,
+            'id' => $id,
+        ]);
+    }
+
     public function updateByAdmin(int $id, int $roleId, string $fullName, string $email, string $phone): void
     {
         $stmt = $this->db->prepare('UPDATE users SET role_id = :role_id, full_name = :full_name, email = :email, phone = :phone, updated_at = NOW() WHERE id = :id');
