@@ -19,14 +19,14 @@ class LocationModel extends BaseModel
 
     public function create(array $data): void
     {
-        $stmt = $this->db->prepare('INSERT INTO gym_locations (name, address, phone, opening_hours, status, created_at, updated_at) VALUES (:name, :address, :phone, :opening_hours, :status, NOW(), NOW())');
+        $stmt = $this->db->prepare('INSERT INTO gym_locations (name, address, phone, opening_hours, status, latitude, longitude, map_place_id, image_path, created_at, updated_at) VALUES (:name, :address, :phone, :opening_hours, :status, :latitude, :longitude, :map_place_id, :image_path, NOW(), NOW())');
         $stmt->execute($data);
     }
 
     public function update(int $id, array $data): void
     {
         $data['id'] = $id;
-        $stmt = $this->db->prepare('UPDATE gym_locations SET name = :name, address = :address, phone = :phone, opening_hours = :opening_hours, status = :status, updated_at = NOW() WHERE id = :id');
+        $stmt = $this->db->prepare('UPDATE gym_locations SET name = :name, address = :address, phone = :phone, opening_hours = :opening_hours, status = :status, latitude = :latitude, longitude = :longitude, map_place_id = :map_place_id, image_path = :image_path, updated_at = NOW() WHERE id = :id');
         $stmt->execute($data);
     }
 
