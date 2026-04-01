@@ -117,6 +117,19 @@ class PaymentModel extends BaseModel
         return $stmt->fetch() ?: null;
     }
 
+    public function findRecentPendingForUser(int $userId, int $limit = 5): array
+    {
+        $limit = max(1, min(20, $limit));
+        $stmt = $this->db->prepare('SELECT p.*, mp.name AS plan_name
+            FROM payments p
+            JOIN membership_plans mp ON mp.id = p.plan_id
+            WHERE p.user_id = :user_id AND p.status = :status
+            ORDER BY p.id DESC
+            LIMIT ' . $limit);
+        $stmt->execute(['user_id' => $userId, 'status' => 'pending']);
+        return $stmt->fetchAll();
+    }
+
     public function findRecentFailedForUser(int $userId): ?array
     {
         $stmt = $this->db->prepare('SELECT p.*, mp.name AS plan_name

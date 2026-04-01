@@ -14,6 +14,7 @@ use App\Models\PaymentModel;
 use App\Models\UserModel;
 use App\Services\BookingService;
 use App\Services\InvoicePdfService;
+use App\Services\PaymentService;
 
 class MemberController extends Controller
 {
@@ -27,6 +28,7 @@ class MemberController extends Controller
         $waitlistModel = new ClassWaitlistModel();
         $paymentModel = new PaymentModel();
         $membership = $membershipModel->currentForUser((int) $user['id']);
+        $paymentService = new PaymentService();
 
         $paymentState = (string) ($_GET['payment'] ?? '');
         $successSessionId = trim((string) ($_GET['session_id'] ?? ''));
@@ -47,10 +49,21 @@ class MemberController extends Controller
 
         $autoInvoiceDownloadUrl = null;
         if ($paymentState === 'success' && $successSessionId !== '') {
+            try {
+                $paymentService->reconcileCheckoutSessionForUser((int) $user['id'], $successSessionId);
+            } catch (\Throwable $e) {
+                error_log('On-success payment reconciliation failed for user #' . (int) $user['id'] . ': ' . $e->getMessage());
+            }
             $successfulPayment = $paymentModel->findBySessionForUser($successSessionId, (int) $user['id']);
             if ($successfulPayment && !empty($successfulPayment['invoice_id'])) {
                 $autoInvoiceDownloadUrl = '/member/invoices/download?payment_id=' . (int) $successfulPayment['id'];
             }
+        }
+
+        try {
+            $paymentService->reconcilePendingPaymentsForUser((int) $user['id'], 8);
+        } catch (\Throwable $e) {
+            error_log('Pending payment reconciliation failed for user #' . (int) $user['id'] . ': ' . $e->getMessage());
         }
 
         $this->render('pages/member_dashboard', [
@@ -324,6 +337,13 @@ class MemberController extends Controller
         }
 
         $user = current_user();
+        $paymentService = new PaymentService();
+        try {
+            $paymentService->reconcileCheckoutSessionForUser((int) $user['id'], $sessionId);
+        } catch (\Throwable $e) {
+            error_log('Invoice status reconciliation failed for user #' . (int) $user['id'] . ': ' . $e->getMessage());
+        }
+
         $payment = (new PaymentModel())->findBySessionForUser($sessionId, (int) $user['id']);
         if (!$payment || empty($payment['invoice_id'])) {
             echo json_encode(['ready' => false]);

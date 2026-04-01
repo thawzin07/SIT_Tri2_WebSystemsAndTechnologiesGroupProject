@@ -23,7 +23,7 @@
       <div class="col-md-3"><input class="form-control" name="latitude" placeholder="Latitude (e.g. 1.2902)" required></div>
       <div class="col-md-3"><input class="form-control" name="longitude" placeholder="Longitude (e.g. 103.8519)" required></div>
       <div class="col-md-2"><input class="form-control" name="map_place_id" placeholder="Google Place ID"></div>
-      <div class="col-md-2"><input class="form-control" name="image_path" placeholder="Image Path (e.g. gym.jpg)"></div>
+      <div class="col-md-2"><input class="form-control" type="file" name="image" accept="image/*"></div>
       <div class="col-md-2"><button class="btn btn-brand w-100" type="submit">Add Location</button></div>
     </div>
   </form>
@@ -47,7 +47,10 @@
       </thead>
       <tbody>
         <?php foreach ($locations as $l): ?>
-          <?php $hasPhoto = !empty($l['image_path']); ?>
+          <?php
+            $locationImage = media_url((string) ($l['image_path'] ?? ''), 'location');
+            $hasPhoto = $locationImage !== '';
+          ?>
           <tr>
             <form action="/admin/locations/update" method="post" enctype="multipart/form-data">
               <?= csrf_input() ?>
@@ -59,7 +62,13 @@
               <td><input class="form-control form-control-sm" name="latitude" value="<?= e($l['latitude']) ?>" required></td>
               <td><input class="form-control form-control-sm" name="longitude" value="<?= e($l['longitude']) ?>" required></td>
               <td><input class="form-control form-control-sm" name="map_place_id" value="<?= e($l['map_place_id']) ?>"></td>
-              <td><input class="form-control form-control-sm" name="image_path" value="<?= e($l['image_path']) ?>"></td>
+              <td>
+                <input class="form-control form-control-sm mb-1" name="image_path" value="<?= e((string) ($l['image_path'] ?? '')) ?>" placeholder="/assets/images/locations/...">
+                <input class="form-control form-control-sm mb-1" type="file" name="image" accept="image/*">
+                <?php if ($hasPhoto): ?>
+                  <img src="<?= e($locationImage) ?>" alt="Location image" style="width: 84px; height: 48px; object-fit: cover; border-radius: 4px;">
+                <?php endif; ?>
+              </td>
               
               <td>
                 <select name="status" class="form-select form-select-sm">

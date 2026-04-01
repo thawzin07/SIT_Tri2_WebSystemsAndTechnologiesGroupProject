@@ -7,15 +7,15 @@ SET SQL_SAFE_UPDATES = 0;
 -- 1) DEMO IMAGE PATHS
 
 UPDATE users
-SET profile_image_path = 'profiles/member-2.jpg'
+SET profile_image_path = '/assets/images/profiles/member-2.jpg'
 WHERE email = 'member@pulsepoint.test';
 
 UPDATE trainers
 SET image_path = CASE name
-  WHEN 'Aiden Cruz' THEN 'trainers/aiden-cruz.jpg'
-  WHEN 'Maya Tan' THEN 'trainers/maya-tan.jpg'
-  WHEN 'Noah Lim' THEN 'trainers/noah-lim.jpg'
-  WHEN 'Hannah Teo' THEN 'trainers/hannah-teo.jpg'
+  WHEN 'Aiden Cruz' THEN '/assets/images/trainers/aiden-cruz.png'
+  WHEN 'Maya Tan' THEN '/assets/images/trainers/maya-tan.png'
+  WHEN 'Noah Lim' THEN '/assets/images/trainers/noah-lim.png'
+  WHEN 'Hannah Teo' THEN '/assets/images/trainers/hannah-teo.png'
   ELSE image_path
 END,
 image_alt = CASE name
@@ -29,9 +29,9 @@ WHERE name IN ('Aiden Cruz', 'Maya Tan', 'Noah Lim', 'Hannah Teo');
 
 UPDATE gym_locations
 SET image_path = CASE name
-  WHEN 'PulsePoint Downtown' THEN 'locations/pulsepoint-downtown.jpg'
-  WHEN 'PulsePoint Riverside' THEN 'locations/pulsepoint-riverside.jpg'
-  WHEN 'PulsePoint East Hub' THEN 'locations/pulsepoint-east-hub.jpg'
+  WHEN 'PulsePoint Downtown' THEN '/assets/images/locations/pulsepoint-downtown.jpg'
+  WHEN 'PulsePoint Riverside' THEN '/assets/images/locations/pulsepoint-riverside.jpg'
+  WHEN 'PulsePoint East Hub' THEN '/assets/images/locations/pulsepoint-east-hub.jpg'
   ELSE image_path
 END,
 latitude = CASE name

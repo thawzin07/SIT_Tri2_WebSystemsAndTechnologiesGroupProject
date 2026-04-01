@@ -41,7 +41,14 @@ class PaymentService
         );
     }
 
-    public function createCheckout(int $userId, string $userEmail, int $planId, string $paymentType, ?string $promoCode = null): array
+    public function createCheckout(
+        int $userId,
+        string $userEmail,
+        int $planId,
+        string $paymentType,
+        ?string $promoCode = null,
+        ?string $requestBaseUrl = null
+    ): array
     {
         $this->assertSupportedPaymentType($paymentType);
         $plan = $this->planModel->find($planId);
@@ -51,12 +58,13 @@ class PaymentService
 
         $currency = strtoupper((string) ($this->config['stripe']['currency'] ?? 'usd'));
         $amount = (float) $plan['price'];
+        $expectedBaseUrl = rtrim((string) ($requestBaseUrl ?: (config('app')['url'] ?? '')), '/');
 
         $existingPending = $this->paymentModel->findPendingByUserPlanAndType($userId, (int) $plan['id'], $paymentType);
         if ($existingPending) {
             try {
                 $existingSession = $this->stripe->retrieveCheckoutSession((string) $existingPending['provider_session_id']);
-                if (($existingSession['status'] ?? '') === 'open' && !empty($existingSession['url'])) {
+                if ($this->isReusableCheckoutSession($existingSession, $expectedBaseUrl)) {
                     return [
                         'payment_id' => (int) $existingPending['id'],
                         'checkout_url' => (string) $existingSession['url'],
@@ -86,7 +94,8 @@ class PaymentService
             $amount,
             $currency,
             $paymentType,
-            $promoCode
+            $promoCode,
+            $requestBaseUrl
         );
 
         $paymentId = $this->paymentModel->createPending([
@@ -109,7 +118,7 @@ class PaymentService
         ];
     }
 
-    public function resumeCheckout(int $userId, string $userEmail, int $paymentId): array
+    public function resumeCheckout(int $userId, string $userEmail, int $paymentId, ?string $requestBaseUrl = null): array
     {
         $payment = $this->paymentModel->findByIdForUser($paymentId, $userId);
         if (!$payment) {
@@ -119,9 +128,10 @@ class PaymentService
             throw new RuntimeException('Only pending or failed payments can be resumed.');
         }
 
+        $expectedBaseUrl = rtrim((string) ($requestBaseUrl ?: (config('app')['url'] ?? '')), '/');
         try {
             $session = $this->stripe->retrieveCheckoutSession((string) $payment['provider_session_id']);
-            if (($session['status'] ?? '') === 'open' && !empty($session['url'])) {
+            if ($this->isReusableCheckoutSession($session, $expectedBaseUrl)) {
                 return [
                     'payment_id' => (int) $payment['id'],
                     'checkout_url' => (string) $session['url'],
@@ -141,7 +151,8 @@ class PaymentService
             (float) $payment['amount'],
             (string) $payment['currency'],
             (string) $payment['payment_type'],
-            null
+            null,
+            $requestBaseUrl
         );
 
         $this->paymentModel->updateSessionForRetry((int) $payment['id'], (string) $session['id']);
@@ -210,6 +221,62 @@ class PaymentService
         return $this->stripe->verifyWebhookSignature($payload, $signatureHeader);
     }
 
+    public function reconcileCheckoutSessionForUser(int $userId, string $sessionId): bool
+    {
+        $sessionId = trim($sessionId);
+        if ($sessionId === '') {
+            return false;
+        }
+
+        $payment = $this->paymentModel->findBySessionForUser($sessionId, $userId);
+        if (!$payment || ($payment['status'] ?? '') === 'paid') {
+            return false;
+        }
+
+        try {
+            $session = $this->stripe->retrieveCheckoutSession($sessionId);
+        } catch (Throwable $e) {
+            error_log('Unable to reconcile checkout session ' . $sessionId . ': ' . $e->getMessage());
+            return false;
+        }
+
+        $sessionStatus = (string) ($session['status'] ?? '');
+        $paymentStatus = (string) ($session['payment_status'] ?? '');
+        if ($sessionStatus === 'complete' && $paymentStatus === 'paid') {
+            $this->processCheckoutCompleted($session);
+            return true;
+        }
+
+        if ($sessionStatus === 'expired') {
+            $intentId = is_string($session['payment_intent'] ?? null) ? (string) $session['payment_intent'] : null;
+            $this->processPaymentFailed($sessionId, $intentId);
+        }
+
+        return false;
+    }
+
+    public function reconcilePendingPaymentsForUser(int $userId, int $limit = 5): int
+    {
+        $resolved = 0;
+        $pending = $this->paymentModel->findRecentPendingForUser($userId, $limit);
+        foreach ($pending as $payment) {
+            $sessionId = (string) ($payment['provider_session_id'] ?? '');
+            if ($sessionId === '') {
+                continue;
+            }
+
+            try {
+                if ($this->reconcileCheckoutSessionForUser($userId, $sessionId)) {
+                    $resolved++;
+                }
+            } catch (Throwable $e) {
+                error_log('Pending payment reconciliation failed for session ' . $sessionId . ': ' . $e->getMessage());
+            }
+        }
+
+        return $resolved;
+    }
+
     private function createStripeCheckoutSession(
         int $userId,
         string $userEmail,
@@ -218,9 +285,10 @@ class PaymentService
         float $amount,
         string $currency,
         string $paymentType,
-        ?string $promoCode
+        ?string $promoCode,
+        ?string $requestBaseUrl = null
     ): array {
-        $appUrl = rtrim((string) (config('app')['url'] ?? ''), '/');
+        $appUrl = rtrim((string) ($requestBaseUrl ?: (config('app')['url'] ?? '')), '/');
         if ($appUrl === '') {
             throw new RuntimeException('APP_URL is not configured.');
         }
@@ -301,34 +369,43 @@ class PaymentService
 
     private function queueNotificationHooks(array $payment): void
     {
-    $userModel = new \App\Models\UserModel();
-    $user = $userModel->find((int) $payment['user_id']);
+        $userModel = new \App\Models\UserModel();
+        $user = $userModel->find((int) $payment['user_id']);
+        if (!$user || empty($user['email'])) {
+            throw new RuntimeException('Unable to queue notifications: user contact details missing.');
+        }
 
-    $payload = [
-        'payment_id'   => (int) $payment['id'],
-        'user_id'      => (int) $payment['user_id'], // Added this!
-        'plan_id'      => (int) $payment['plan_id'],
-        'payment_type' => (string) $payment['payment_type'],
-        'amount'       => (float) $payment['amount'],
-        'currency'     => (string) $payment['currency'],
-    ];
+        $invoice = $this->invoiceModel->findByPaymentId((int) $payment['id']);
+        $payload = [
+            'payment_id' => (int) $payment['id'],
+            'user_id' => (int) $payment['user_id'],
+            'plan_id' => (int) $payment['plan_id'],
+            'payment_type' => (string) $payment['payment_type'],
+            'amount' => (float) $payment['amount'],
+            'currency' => (string) $payment['currency'],
+            'invoice_no' => (string) ($invoice['invoice_no'] ?? ''),
+            'invoice_pdf_path' => (string) ($invoice['pdf_path'] ?? ''),
+        ];
 
-    $this->notificationLogModel->queue(
-        (int) $payment['user_id'],
-        'email',
-        'payment_success',
-        $user['email'], 
-        $payload
-    );
+        $eventType = ($payment['payment_type'] ?? '') === 'renew' ? 'membership_renewed' : 'payment_success';
+        $this->notificationLogModel->queue(
+            (int) $payment['user_id'],
+            'email',
+            $eventType,
+            (string) $user['email'],
+            $payload
+        );
 
-    $eventType = ($payment['payment_type'] ?? '') === 'renew' ? 'membership_renewed' : 'payment_success';
-    $this->notificationLogModel->queue(
-        (int) $payment['user_id'],
-        'telegram',
-        $eventType,
-        $user['telegram_chat_id'] ?? '', 
-        $payload
-    );
+        $telegramTarget = trim((string) ($user['telegram_chat_id'] ?? ''));
+        if ($telegramTarget !== '') {
+            $this->notificationLogModel->queue(
+                (int) $payment['user_id'],
+                'telegram',
+                $eventType,
+                $telegramTarget,
+                $payload
+            );
+        }
     }
 
     private function ensureInvoiceExists(array $payment): array
@@ -422,5 +499,38 @@ class PaymentService
         if (!in_array($paymentType, ['purchase', 'renew'], true)) {
             throw new RuntimeException('Unsupported payment type.');
         }
+    }
+
+    private function isReusableCheckoutSession(array $session, string $expectedBaseUrl): bool
+    {
+        if (($session['status'] ?? '') !== 'open' || empty($session['url'])) {
+            return false;
+        }
+
+        if ($expectedBaseUrl === '') {
+            return true;
+        }
+
+        $successUrl = (string) ($session['success_url'] ?? '');
+        if ($successUrl === '') {
+            return false;
+        }
+
+        $expected = parse_url($expectedBaseUrl);
+        $actual = parse_url($successUrl);
+        if (!is_array($expected) || !is_array($actual)) {
+            return false;
+        }
+
+        $expectedHost = strtolower((string) ($expected['host'] ?? ''));
+        $actualHost = strtolower((string) ($actual['host'] ?? ''));
+        $expectedScheme = strtolower((string) ($expected['scheme'] ?? 'http'));
+        $actualScheme = strtolower((string) ($actual['scheme'] ?? 'http'));
+        $expectedPort = (int) ($expected['port'] ?? ($expectedScheme === 'https' ? 443 : 80));
+        $actualPort = (int) ($actual['port'] ?? ($actualScheme === 'https' ? 443 : 80));
+
+        return $expectedHost !== '' && $expectedHost === $actualHost
+            && $expectedScheme === $actualScheme
+            && $expectedPort === $actualPort;
     }
 }

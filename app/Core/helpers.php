@@ -49,6 +49,50 @@ function e(?string $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+function media_url(?string $path, string $type = ''): string
+{
+    $raw = trim((string) $path);
+    if ($raw === '') {
+        return '';
+    }
+
+    $normalized = str_replace('\\', '/', $raw);
+    if (preg_match('#^(?:https?:)?//#i', $normalized) || str_starts_with($normalized, 'data:')) {
+        return $normalized;
+    }
+
+    $trimmed = ltrim($normalized, '/');
+    if (str_starts_with($trimmed, 'assets/')) {
+        return '/' . $trimmed;
+    }
+
+    if (str_starts_with($trimmed, 'gym_images/')) {
+        return '/assets/images/locations/' . basename($trimmed);
+    }
+    if (str_starts_with($trimmed, 'trainers/')) {
+        return '/assets/images/trainers/' . basename($trimmed);
+    }
+    if (str_starts_with($trimmed, 'locations/')) {
+        return '/assets/images/locations/' . basename($trimmed);
+    }
+    if (str_starts_with($trimmed, 'profiles/')) {
+        return '/assets/images/profiles/' . basename($trimmed);
+    }
+
+    $folder = match ($type) {
+        'trainer' => 'trainers',
+        'location' => 'locations',
+        'profile' => 'profiles',
+        default => '',
+    };
+
+    if ($folder !== '') {
+        return '/assets/images/' . $folder . '/' . basename($trimmed);
+    }
+
+    return '/' . $trimmed;
+}
+
 function flash(string $key, ?string $message = null): ?string
 {
     if ($message !== null) {

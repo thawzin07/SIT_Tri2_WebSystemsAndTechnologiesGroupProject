@@ -29,7 +29,8 @@ class PaymentController extends Controller
                 (string) $user['email'],
                 $planId,
                 $paymentType,
-                $promoCode !== '' ? $promoCode : null
+                $promoCode !== '' ? $promoCode : null,
+                $this->requestBaseUrl()
             );
 
             if (($result['checkout_url'] ?? '') === '') {
@@ -57,7 +58,12 @@ class PaymentController extends Controller
 
         $user = current_user();
         try {
-            $result = (new PaymentService())->resumeCheckout((int) $user['id'], (string) $user['email'], $paymentId);
+            $result = (new PaymentService())->resumeCheckout(
+                (int) $user['id'],
+                (string) $user['email'],
+                $paymentId,
+                $this->requestBaseUrl()
+            );
             if (($result['checkout_url'] ?? '') === '') {
                 throw new \RuntimeException('Unable to resume checkout.');
             }
@@ -112,5 +118,20 @@ class PaymentController extends Controller
             http_response_code(500);
             echo 'Webhook handling error';
         }
+    }
+
+    private function requestBaseUrl(): ?string
+    {
+        $host = trim((string) ($_SERVER['HTTP_HOST'] ?? ''));
+        if ($host === '') {
+            return null;
+        }
+
+        $protoHeader = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
+        $isSecure = $protoHeader === 'https'
+            || (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off');
+        $scheme = $isSecure ? 'https' : 'http';
+
+        return $scheme . '://' . $host;
     }
 }

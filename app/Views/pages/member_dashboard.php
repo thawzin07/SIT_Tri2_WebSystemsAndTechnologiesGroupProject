@@ -3,10 +3,6 @@
   <p class="section-subtitle">One place to manage your plan timeline, queued upgrades, renewals, and payment history.</p>
 
   <?php $membershipStatus = $membership ? (string) ($membership['effective_status'] ?? $membership['status']) : ''; ?>
-  <?php $dashboardUser = current_user(); ?>
-  <?php $profileImagePath = trim((string) ($dashboardUser['profile_image_path'] ?? '')); ?>
-  <?php $profileImageUrl = $profileImagePath !== '' ? '/' . ltrim($profileImagePath, '/') : ''; ?>
-  <?php $profileInitial = strtoupper(substr((string) ($dashboardUser['full_name'] ?? 'U'), 0, 1)); ?>
   <?php if (!empty($expiringSoon) && $membershipStatus === 'active'): ?>
     <div class="alert alert-warning pp-alert mb-4" role="status">
       <strong>Reminder:</strong> Your current plan is nearing expiry. You can renew now and it will queue after your current end date.
@@ -36,7 +32,7 @@
   <?php endif; ?>
 
   <div class="row g-3 mb-4" id="billing">
-    <div class="col-lg-7">
+    <div class="col-12">
       <div class="card p-4 h-100">
         <h2 class="h5 mb-3">Current Plan Snapshot</h2>
         <?php if ($membership): ?>
@@ -61,27 +57,6 @@
           <p class="small text-muted mb-3">Rule: You can purchase a new plan. Renewal is enabled after first purchase.</p>
           <a class="btn btn-sm btn-brand" href="/plans">Purchase First Plan</a>
         <?php endif; ?>
-      </div>
-    </div>
-
-    <div class="col-lg-5">
-      <div class="card-muted p-4 h-100">
-        <h2 class="h5 mb-3">Quick Actions</h2>
-        <div class="member-quick-profile">
-          <?php if ($profileImageUrl !== ''): ?>
-            <img
-              src="<?= e($profileImageUrl) ?>"
-              alt="Profile picture"
-              class="member-profile-avatar"
-              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-            >
-            <div class="member-profile-avatar member-profile-avatar-fallback" style="display:none;"><?= e($profileInitial) ?></div>
-          <?php else: ?>
-            <div class="member-profile-avatar member-profile-avatar-fallback"><?= e($profileInitial) ?></div>
-          <?php endif; ?>
-          <p class="member-profile-email mb-3"><?= e((string) ($dashboardUser['email'] ?? '')) ?></p>
-          <a class="btn btn-outline-primary w-100" href="/member/profile">Update Profile</a>
-        </div>
       </div>
     </div>
   </div>

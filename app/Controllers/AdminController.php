@@ -352,13 +352,30 @@ class AdminController extends Controller
             'address' => trim((string) $_POST['address']),
             'phone' => trim((string) $_POST['phone']),
             'opening_hours' => trim((string) $_POST['opening_hours']),
-            'image_path' => '',
+            'image_path' => $this->normalizeLocationImagePath((string) ($_POST['image_path'] ?? '')),
             'status' => ($_POST['status'] ?? 'inactive') === 'active' ? 'active' : 'inactive',
-            'latitude'      => trim($_POST['latitude'] ?? ''),
-            'longitude'     => trim($_POST['longitude'] ?? ''),
-            'map_place_id'  => trim($_POST['map_place_id'] ?? ''),
-            'image_path'    => trim($_POST['image_path'] ?? '')
+            'latitude' => trim((string) ($_POST['latitude'] ?? '')),
+            'longitude' => trim((string) ($_POST['longitude'] ?? '')),
+            'map_place_id' => trim((string) ($_POST['map_place_id'] ?? '')),
         ];
+    }
+
+    private function normalizeLocationImagePath(string $path): string
+    {
+        $value = trim(str_replace('\\', '/', $path));
+        if ($value === '') {
+            return '';
+        }
+
+        $value = ltrim($value, '/');
+        if (str_starts_with($value, 'assets/images/locations/')) {
+            return '/' . $value;
+        }
+        if (str_starts_with($value, 'locations/') || str_starts_with($value, 'gym_images/')) {
+            return '/assets/images/locations/' . basename($value);
+        }
+
+        return '/assets/images/locations/' . basename($value);
     }
 
     public function bookings(): void
