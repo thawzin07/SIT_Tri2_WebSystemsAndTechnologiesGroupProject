@@ -6,12 +6,14 @@ use App\Core\Controller;
 use App\Core\Validator;
 use App\Models\BookingModel;
 use App\Models\ClassWaitlistModel;
+use App\Models\InvoiceModel;
 use App\Models\GymClassModel;
 use App\Models\MembershipModel;
 use App\Models\MembershipPlanModel;
 use App\Models\PaymentModel;
 use App\Models\UserModel;
 use App\Services\BookingService;
+use App\Services\InvoicePdfService;
 
 class MemberController extends Controller
 {
@@ -27,6 +29,7 @@ class MemberController extends Controller
         $membership = $membershipModel->currentForUser((int) $user['id']);
 
         $paymentState = (string) ($_GET['payment'] ?? '');
+        $successSessionId = trim((string) ($_GET['session_id'] ?? ''));
         if ($paymentState === 'success') {
             flash('success', 'Payment received. Final confirmation may take a few seconds.');
         } elseif ($paymentState === 'cancelled') {
@@ -42,6 +45,14 @@ class MemberController extends Controller
             }
         }
 
+        $autoInvoiceDownloadUrl = null;
+        if ($paymentState === 'success' && $successSessionId !== '') {
+            $successfulPayment = $paymentModel->findBySessionForUser($successSessionId, (int) $user['id']);
+            if ($successfulPayment && !empty($successfulPayment['invoice_id'])) {
+                $autoInvoiceDownloadUrl = '/member/invoices/download?payment_id=' . (int) $successfulPayment['id'];
+            }
+        }
+
         $this->render('pages/member_dashboard', [
             'title' => 'Member Dashboard',
             'membership' => $membership,
@@ -52,6 +63,8 @@ class MemberController extends Controller
             'pendingPayment' => $paymentModel->findLatestPendingForUser((int) $user['id']),
             'failedPayment' => $paymentModel->findRecentFailedForUser((int) $user['id']),
             'expiringSoon' => $expiringSoon,
+            'autoInvoiceDownloadUrl' => $autoInvoiceDownloadUrl,
+            'autoInvoiceSessionId' => $paymentState === 'success' ? $successSessionId : '',
         ]);
     }
 
@@ -275,7 +288,55 @@ class MemberController extends Controller
 
         $cancelled = (new ClassWaitlistModel())->cancelByMember($waitlistId, (int) current_user()['id']);
         flash($cancelled ? 'success' : 'error', $cancelled ? 'Removed from waitlist.' : 'Unable to remove waitlist entry.');
+<<<<<<< Updated upstream
+        redirect('/member/bookings');
+=======
         redirect($redirectTo);
+    }
+
+    public function downloadInvoice(): void
+    {
+        $this->requireMember();
+
+        $paymentId = (int) ($_GET['payment_id'] ?? 0);
+        if ($paymentId < 1) {
+            flash('error', 'Invalid invoice request.');
+            redirect('/member/dashboard#billing');
+        }
+
+        $user = current_user();
+        $invoice = (new InvoiceModel())->findDownloadDataByPaymentIdForUser($paymentId, (int) $user['id']);
+        if ($invoice === null) {
+            flash('error', 'Invoice not found for this payment.');
+            redirect('/member/dashboard#billing');
+        }
+
+        (new InvoicePdfService())->streamInvoice($invoice);
+    }
+
+    public function invoiceDownloadStatus(): void
+    {
+        $this->requireMember();
+
+        $sessionId = trim((string) ($_GET['session_id'] ?? ''));
+        header('Content-Type: application/json');
+
+        if ($sessionId === '') {
+            echo json_encode(['ready' => false]);
+            return;
+        }
+
+        $user = current_user();
+        $payment = (new PaymentModel())->findBySessionForUser($sessionId, (int) $user['id']);
+        if (!$payment || empty($payment['invoice_id'])) {
+            echo json_encode(['ready' => false]);
+            return;
+        }
+
+        echo json_encode([
+            'ready' => true,
+            'download_url' => '/member/invoices/download?payment_id=' . (int) $payment['id'],
+        ]);
     }
 
     private function resolveRedirectTarget(string $defaultPath): string
@@ -356,5 +417,6 @@ class MemberController extends Controller
         if (is_file($absolutePath)) {
             @unlink($absolutePath);
         }
+>>>>>>> Stashed changes
     }
 }
