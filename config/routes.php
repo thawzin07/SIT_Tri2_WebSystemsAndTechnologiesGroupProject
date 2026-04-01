@@ -12,6 +12,7 @@ return [
     ['GET', '/contact', 'HomeController', 'contact', 'public'],
     ['POST', '/contact', 'HomeController', 'submitContact', 'public'],
     ['GET', '/faq', 'HomeController', 'faq', 'public'],
+    ['POST', '/api/chatbot', 'ChatbotController', 'ask', 'public'],
 
     ['GET', '/register', 'AuthController', 'showRegister', 'guest'],
     ['POST', '/register', 'AuthController', 'register', 'guest'],
@@ -24,6 +25,7 @@ return [
     ['GET', '/member/dashboard', 'MemberController', 'dashboard', 'member'],
     ['GET', '/member/profile', 'MemberController', 'profile', 'member'],
     ['POST', '/member/profile', 'MemberController', 'updateProfile', 'member'],
+    ['POST', '/member/profile/delete', 'MemberController', 'deleteProfile', 'member'],
     ['POST', '/member/membership/subscribe', 'MemberController', 'subscribe', 'member'],
     ['POST', '/member/membership/renew', 'MemberController', 'renew', 'member'],
     ['POST', '/member/membership/cancel', 'MemberController', 'cancelMembership', 'member'],

@@ -51,4 +51,47 @@ class GymClassModel extends BaseModel
         $stmt = $this->db->prepare('DELETE FROM classes WHERE id = :id');
         $stmt->execute(['id' => $id]);
     }
+
+    public function upcomingActiveFiltered(?string $date = null, ?int $trainerId = null, ?int $locationId = null, ?string $dateFrom = null, ?string $dateTo = null): array
+    {
+        $sql = 'SELECT c.*, t.name AS trainer_name, l.name AS location_name,
+                (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.booking_status = "booked") AS booked_count,
+                (SELECT COUNT(*) FROM class_waitlist w WHERE w.class_id = c.id AND w.waitlist_status = "waiting") AS waitlist_count
+                FROM classes c
+                JOIN trainers t ON t.id = c.trainer_id
+                JOIN gym_locations l ON l.id = c.location_id
+                WHERE c.status = :status AND c.class_date >= CURDATE()';
+
+        $params = ['status' => 'active'];
+
+        if ($date) {
+            $sql .= ' AND c.class_date = :date';
+            $params['date'] = $date;
+        } else {
+            if ($dateFrom) {
+                $sql .= ' AND c.class_date >= :date_from';
+                $params['date_from'] = $dateFrom;
+            }
+            if ($dateTo) {
+                $sql .= ' AND c.class_date <= :date_to';
+                $params['date_to'] = $dateTo;
+            }
+        }
+
+        if ($trainerId) {
+            $sql .= ' AND c.trainer_id = :trainer_id';
+            $params['trainer_id'] = $trainerId;
+        }
+
+        if ($locationId) {
+            $sql .= ' AND c.location_id = :location_id';
+            $params['location_id'] = $locationId;
+        }
+
+        $sql .= ' ORDER BY c.class_date ASC, c.start_time ASC';
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
 }

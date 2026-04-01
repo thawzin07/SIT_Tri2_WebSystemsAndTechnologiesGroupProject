@@ -1,3 +1,10 @@
+<?php
+/**
+ * Update admin/trainers.php to use file input for image upload
+ */
+
+$adminTrainersFile = 'app/Views/admin/trainers.php';
+$viewContent = <<<'HTML'
 <section class="container page-shell">
   <h1 class="section-title">Manage Trainers</h1>
   <p class="section-subtitle">Maintain trainer profiles, specialties, and active status.</p>
@@ -9,15 +16,7 @@
       <div class="col-md-2"><input class="form-control" name="name" placeholder="Name" required></div>
       <div class="col-md-2"><input class="form-control" name="specialty" placeholder="Specialty" required></div>
       <div class="col-md-3"><input class="form-control" name="bio" placeholder="Bio" required></div>
-      <div class="col-md-2">
-        <label for="create-trainer-image" class="btn btn-outline-secondary w-100 trainer-file-btn">Choose File</label>
-        <input id="create-trainer-image" type="file" name="image" class="trainer-image-input visually-hidden" accept="image/*" data-preview-target="#create-trainer-photo-preview">
-      </div>
-      <div class="col-md-1 d-flex align-items-center justify-content-center">
-        <div id="create-trainer-photo-preview" class="trainer-photo-preview" data-empty-text="-">
-          <span class="trainer-photo-placeholder">-</span>
-        </div>
-      </div>
+      <div class="col-md-2"><input type="file" name="image" class="form-control" accept="image/*" placeholder="Photo"></div>
       <div class="col-md-1"><select name="status" class="form-select"><option>active</option><option>inactive</option></select></div>
       <div class="col-md-1"><button class="btn btn-brand w-100" type="submit">Add</button></div>
     </div>
@@ -34,11 +33,11 @@
               <?= csrf_input() ?>
               <td><?= (int)$t['id'] ?><input type="hidden" name="id" value="<?= (int)$t['id'] ?>"></td>
               <td>
-                <div id="trainer-photo-preview-<?= (int)$t['id'] ?>" class="trainer-photo-preview" data-empty-text="-">
+                <div class="trainer-photo-preview" style="width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: #e0f2fe; display: inline-flex; align-items: center; justify-content: center;">
                   <?php if ($hasPhoto): ?>
-                    <img src="<?= e($t['image_path']) ?>" alt="Trainer photo" class="trainer-photo-img">
+                    <img src="<?= e($t['image_path']) ?>" alt="Trainer photo" style="width: 100%; height: 100%; object-fit: cover;">
                   <?php else: ?>
-                    <span class="trainer-photo-placeholder">-</span>
+                    <span style="font-size: 0.7rem; color: #1e3a8a; font-weight: bold;">-</span>
                   <?php endif; ?>
                 </div>
               </td>
@@ -46,17 +45,14 @@
               <td><input class="form-control form-control-sm" name="specialty" value="<?= e($t['specialty']) ?>" required></td>
               <td><input class="form-control form-control-sm" name="bio" value="<?= e($t['bio']) ?>" required></td>
               <td><select name="status" class="form-select form-select-sm"><option value="active" <?= $t['status']==='active'?'selected':'' ?>>active</option><option value="inactive" <?= $t['status']==='inactive'?'selected':'' ?>>inactive</option></select></td>
-              <td class="trainer-actions-cell">
-                <div class="trainer-actions">
-                  <label for="trainer-image-<?= (int)$t['id'] ?>" class="btn btn-sm btn-outline-secondary trainer-file-btn">Choose File</label>
-                  <input id="trainer-image-<?= (int)$t['id'] ?>" type="file" name="image" class="trainer-image-input visually-hidden" accept="image/*" data-preview-target="#trainer-photo-preview-<?= (int)$t['id'] ?>">
-                  <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
-                </div>
+              <td class="d-flex gap-1">
+                <input type="file" name="image" class="form-control form-control-sm" accept="image/*" style="max-width: 100px;">
+                <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
             </form>
-            <form action="/admin/trainers/delete" method="post" class="trainer-delete-form">
+            <form action="/admin/trainers/delete" method="post">
               <?= csrf_input() ?>
               <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">
-              <button class="btn btn-sm btn-outline-danger trainer-delete-btn" type="submit">Delete</button>
+              <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
             </form>
               </td>
           </tr>
@@ -65,3 +61,7 @@
     </table>
   </div>
 </section>
+HTML;
+
+file_put_contents($adminTrainersFile, $viewContent);
+echo "✓ Updated app/Views/admin/trainers.php with file upload input\n";

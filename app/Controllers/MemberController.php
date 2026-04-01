@@ -22,7 +22,7 @@ class MemberController extends Controller
         $user = current_user();
         $membershipModel = new MembershipModel();
         $bookingModel = new BookingModel();
-        $classModel = new GymClassModel();
+        $waitlistModel = new ClassWaitlistModel();
         $paymentModel = new PaymentModel();
         $membership = $membershipModel->currentForUser((int) $user['id']);
 
@@ -47,7 +47,7 @@ class MemberController extends Controller
             'membership' => $membership,
             'history' => $membershipModel->historyForUser((int) $user['id']),
             'bookings' => $bookingModel->userBookings((int) $user['id']),
-            'classes' => $classModel->upcomingActive(),
+            'waitlistEntries' => $waitlistModel->userWaitingEntries((int) $user['id']),
             'billingHistory' => $paymentModel->billingHistoryForUser((int) $user['id']),
             'pendingPayment' => $paymentModel->findLatestPendingForUser((int) $user['id']),
             'failedPayment' => $paymentModel->findRecentFailedForUser((int) $user['id']),
@@ -58,7 +58,15 @@ class MemberController extends Controller
     public function profile(): void
     {
         $this->requireMember();
-        $this->render('pages/profile', ['title' => 'Profile', 'user' => current_user()]);
+
+        $user = current_user();
+        $membership = (new MembershipModel())->currentForUser((int) $user['id']);
+
+        $this->render('pages/profile', [
+            'title' => 'Profile',
+            'user' => $user,
+            'membership' => $membership,
+        ]);
     }
 
     public function updateProfile(): void
@@ -75,11 +83,46 @@ class MemberController extends Controller
         }
 
         $user = current_user();
+        $profileImagePath = (string) ($user['profile_image_path'] ?? '');
+
+        if (isset($_FILES['profile_image']) && is_array($_FILES['profile_image'])) {
+            $errorCode = (int) ($_FILES['profile_image']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($errorCode !== UPLOAD_ERR_NO_FILE) {
+                try {
+                    $profileImagePath = $this->storeProfileImage($_FILES['profile_image'], (int) $user['id'], $profileImagePath);
+                } catch (\RuntimeException $ex) {
+                    flash('error', $ex->getMessage());
+                    redirect('/member/profile');
+                }
+            }
+        }
+
         $userModel = new UserModel();
-        $userModel->updateBasic((int) $user['id'], $fullName, $phone);
+        $userModel->updateBasicWithImage(
+            (int) $user['id'],
+            $fullName,
+            $phone,
+            $profileImagePath !== '' ? $profileImagePath : null
+        );
 
         flash('success', 'Profile updated successfully.');
         redirect('/member/profile');
+    }
+
+    public function deleteProfile(): void
+    {
+        $this->requireMember();
+        verify_csrf();
+
+        $user = current_user();
+        $userId = (int) $user['id'];
+        $this->removeProfileImage((string) ($user['profile_image_path'] ?? ''));
+
+        (new UserModel())->delete($userId);
+
+        unset($_SESSION['user_id']);
+        flash('success', 'Your account was deleted successfully.');
+        redirect('/');
     }
 
     public function subscribe(): void
@@ -169,11 +212,12 @@ class MemberController extends Controller
     {
         $this->requireMember();
         verify_csrf();
+        $redirectTo = $this->resolveRedirectTarget('/member/bookings');
 
         $classId = (int) ($_POST['class_id'] ?? 0);
         if ($classId < 1) {
             flash('error', 'Invalid class selection.');
-            redirect('/member/bookings');
+            redirect($redirectTo);
         }
 
         $status = (new BookingService())->bookOrWaitlist((int) current_user()['id'], $classId);
@@ -190,18 +234,19 @@ class MemberController extends Controller
             flash('error', 'Class not available.');
         }
 
-        redirect('/member/bookings');
+        redirect($redirectTo);
     }
 
     public function cancelBooking(): void
     {
         $this->requireMember();
         verify_csrf();
+        $redirectTo = $this->resolveRedirectTarget('/member/bookings');
 
         $bookingId = (int) ($_POST['booking_id'] ?? 0);
         if ($bookingId < 1) {
             flash('error', 'Invalid booking selection.');
-            redirect('/member/bookings');
+            redirect($redirectTo);
         }
 
         $status = (new BookingService())->cancelBookingAndPromote((int) current_user()['id'], $bookingId);
@@ -213,22 +258,103 @@ class MemberController extends Controller
             flash('error', 'Unable to cancel this booking.');
         }
 
-        redirect('/member/bookings');
+        redirect($redirectTo);
     }
 
     public function cancelWaitlist(): void
     {
         $this->requireMember();
         verify_csrf();
+        $redirectTo = $this->resolveRedirectTarget('/member/bookings');
 
         $waitlistId = (int) ($_POST['waitlist_id'] ?? 0);
         if ($waitlistId < 1) {
             flash('error', 'Invalid waitlist entry.');
-            redirect('/member/bookings');
+            redirect($redirectTo);
         }
 
         $cancelled = (new ClassWaitlistModel())->cancelByMember($waitlistId, (int) current_user()['id']);
         flash($cancelled ? 'success' : 'error', $cancelled ? 'Removed from waitlist.' : 'Unable to remove waitlist entry.');
-        redirect('/member/bookings');
+        redirect($redirectTo);
+    }
+
+    private function resolveRedirectTarget(string $defaultPath): string
+    {
+        $target = trim((string) ($_POST['redirect_to'] ?? ''));
+        if ($target === '') {
+            return $defaultPath;
+        }
+
+        $allowedPaths = [
+            '/member/bookings',
+            '/member/dashboard',
+            '/schedule',
+        ];
+
+        $path = parse_url($target, PHP_URL_PATH);
+        if (!is_string($path) || !in_array($path, $allowedPaths, true)) {
+            return $defaultPath;
+        }
+
+        return $target;
+    }
+
+    private function storeProfileImage(array $file, int $userId, string $existingImagePath): string
+    {
+        $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('Unable to upload image. Please try a different file.');
+        }
+
+        $size = (int) ($file['size'] ?? 0);
+        if ($size < 1 || $size > (3 * 1024 * 1024)) {
+            throw new \RuntimeException('Profile image must be under 3MB.');
+        }
+
+        $tmpName = (string) ($file['tmp_name'] ?? '');
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new \RuntimeException('Invalid upload source.');
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = (string) $finfo->file($tmpName);
+        $allowed = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+        ];
+
+        if (!isset($allowed[$mimeType])) {
+            throw new \RuntimeException('Only JPG, PNG, WEBP, or GIF images are allowed.');
+        }
+
+        $relativeDirectory = '/assets/images/profiles';
+        $absoluteDirectory = dirname(__DIR__, 2) . '/public' . $relativeDirectory;
+        if (!is_dir($absoluteDirectory) && !mkdir($absoluteDirectory, 0775, true) && !is_dir($absoluteDirectory)) {
+            throw new \RuntimeException('Unable to prepare profile image directory.');
+        }
+
+        $fileName = 'profile-' . $userId . '-' . date('YmdHis') . '-' . bin2hex(random_bytes(3)) . '.' . $allowed[$mimeType];
+        $absolutePath = $absoluteDirectory . '/' . $fileName;
+        if (!move_uploaded_file($tmpName, $absolutePath)) {
+            throw new \RuntimeException('Failed to save uploaded image.');
+        }
+
+        $this->removeProfileImage($existingImagePath);
+
+        return $relativeDirectory . '/' . $fileName;
+    }
+
+    private function removeProfileImage(string $relativePath): void
+    {
+        if ($relativePath === '' || !str_starts_with($relativePath, '/assets/images/profiles/')) {
+            return;
+        }
+
+        $absolutePath = dirname(__DIR__, 2) . '/public' . $relativePath;
+        if (is_file($absolutePath)) {
+            @unlink($absolutePath);
+        }
     }
 }

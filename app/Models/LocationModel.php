@@ -30,6 +30,15 @@ class LocationModel extends BaseModel
         $stmt->execute($data);
     }
 
+    public function find(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM gym_locations WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
     public function delete(int $id): void
     {
         $stmt = $this->db->prepare('DELETE FROM gym_locations WHERE id = :id');

@@ -2,7 +2,7 @@
   <h1 class="section-title">Manage Locations</h1>
   <p class="section-subtitle">Maintain branch addresses, contact numbers, operating hours, and map coordinates.</p>
 
-  <form action="/admin/locations/create" method="post" class="card p-3 mb-4">
+  <form action="/admin/locations/create" method="post" enctype="multipart/form-data" class="card p-3 mb-4">
     <?= csrf_input() ?>
     <h2 class="h5">Create Location</h2>
     
@@ -47,15 +47,15 @@
       </thead>
       <tbody>
         <?php foreach ($locations as $l): ?>
+          <?php $hasPhoto = !empty($l['image_path']); ?>
           <tr>
-            <form action="/admin/locations/update" method="post">
+            <form action="/admin/locations/update" method="post" enctype="multipart/form-data">
               <?= csrf_input() ?>
               <td><?= (int)$l['id'] ?><input type="hidden" name="id" value="<?= (int)$l['id'] ?>"></td>
               <td><input class="form-control form-control-sm" name="name" value="<?= e($l['name']) ?>" required></td>
               <td><input class="form-control form-control-sm" name="address" value="<?= e($l['address']) ?>" required></td>
               <td><input class="form-control form-control-sm" name="phone" value="<?= e($l['phone']) ?>" required></td>
               <td><input class="form-control form-control-sm" name="opening_hours" value="<?= e($l['opening_hours']) ?>" required></td>
-              
               <td><input class="form-control form-control-sm" name="latitude" value="<?= e($l['latitude']) ?>" required></td>
               <td><input class="form-control form-control-sm" name="longitude" value="<?= e($l['longitude']) ?>" required></td>
               <td><input class="form-control form-control-sm" name="map_place_id" value="<?= e($l['map_place_id']) ?>"></td>
@@ -74,7 +74,7 @@
             <form action="/admin/locations/delete" method="post">
               <?= csrf_input() ?>
               <input type="hidden" name="id" value="<?= (int)$l['id'] ?>">
-              <button class="btn btn-sm btn-outline-danger">Delete</button>
+              <button class="btn btn-sm btn-outline-danger location-delete-btn" type="submit">Delete</button>
             </form>
               </td>
           </tr>

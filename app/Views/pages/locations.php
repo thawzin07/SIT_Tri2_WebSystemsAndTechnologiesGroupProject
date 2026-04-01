@@ -11,8 +11,15 @@
     <?php foreach ($locations as $location): ?>
       <div class="col-md-6">
         <article class="card h-100">
-          <img src="/<?= e($location['image_path']) ?>" class="card-img-top" alt="<?= e($location['name']) ?>" style="height: 200px; object-fit: cover;">
-          
+          <div class="location-card-image">
+              <?php if (!empty($location['image_path'])): ?>
+                  <img src="/<?= e($location['image_path']) ?>" class="card-img-top w-100" alt="<?= e($location['name']) ?>" style="height: 200px; object-fit: cover;">
+              <?php else: ?>
+                  <div class="location-card-placeholder d-flex align-items-center justify-content-center bg-light" style="height: 200px;">
+                      <span class="text-muted">No Image Available</span>
+                  </div>
+              <?php endif; ?>
+          </div>
           <div class="card-body p-4">
             <h2 class="h5"><?= e($location['name']) ?></h2>
             <p class="mb-1"><?= e($location['address']) ?></p>

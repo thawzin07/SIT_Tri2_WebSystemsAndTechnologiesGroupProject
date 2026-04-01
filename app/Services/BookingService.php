@@ -68,10 +68,11 @@ class BookingService
                 return 'booking_not_active';
             }
 
-            $this->lockClass((int) $booking['class_id']);
-            $this->cancelBooking($bookingId, $userId);
+            $classId = (int) $booking['class_id'];
+            $this->lockClass($classId);
+            $this->cancelBooking($bookingId, $userId, $classId);
 
-            $promoted = $this->promoteNextWaitlistedMember((int) $booking['class_id']);
+            $promoted = $this->promoteNextWaitlistedMember($classId);
             $this->db->commit();
 
             return $promoted ? 'cancelled_promoted' : 'cancelled';
@@ -169,14 +170,37 @@ class BookingService
         return $stmt->fetch() ?: null;
     }
 
-    private function cancelBooking(int $bookingId, int $userId): void
+    private function cancelBooking(int $bookingId, int $userId, int $classId): void
     {
-        $stmt = $this->db->prepare('UPDATE bookings SET booking_status = :booking_status, updated_at = NOW() WHERE id = :id AND user_id = :user_id');
-        $stmt->execute([
+        if ($this->hasBookingWithStatus($userId, $classId, 'cancelled')) {
+            $deleteStmt = $this->db->prepare('DELETE FROM bookings WHERE id = :id AND user_id = :user_id AND booking_status = :booking_status');
+            $deleteStmt->execute([
+                'id' => $bookingId,
+                'user_id' => $userId,
+                'booking_status' => 'booked',
+            ]);
+            return;
+        }
+
+        $updateStmt = $this->db->prepare('UPDATE bookings SET booking_status = :booking_status, updated_at = NOW() WHERE id = :id AND user_id = :user_id AND booking_status = :current_status');
+        $updateStmt->execute([
             'booking_status' => 'cancelled',
             'id' => $bookingId,
             'user_id' => $userId,
+            'current_status' => 'booked',
         ]);
+    }
+
+    private function hasBookingWithStatus(int $userId, int $classId, string $status): bool
+    {
+        $stmt = $this->db->prepare('SELECT id FROM bookings WHERE user_id = :user_id AND class_id = :class_id AND booking_status = :booking_status LIMIT 1 FOR UPDATE');
+        $stmt->execute([
+            'user_id' => $userId,
+            'class_id' => $classId,
+            'booking_status' => $status,
+        ]);
+
+        return (bool) $stmt->fetch();
     }
 
     private function promoteNextWaitlistedMember(int $classId): bool
