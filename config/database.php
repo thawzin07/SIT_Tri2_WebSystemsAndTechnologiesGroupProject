@@ -7,6 +7,6 @@ return [
     'port' => (int) (getenv('DB_PORT') ?: 3306),
     'name' => getenv('DB_NAME') ?: 'pulsepoint_fitness',
     'user' => getenv('DB_USER') ?: 'root',
-    'pass' => getenv('DB_PASS') ?: 'Cyw@778890!!',
+    'pass' => getenv('DB_PASS') ?: '',
     'charset' => 'utf8mb4',
 ];

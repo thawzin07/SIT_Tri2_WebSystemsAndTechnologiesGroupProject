@@ -48,7 +48,41 @@ class HomeController extends Controller
     public function schedule(): void
     {
         $classModel = new GymClassModel();
-        $this->render('pages/schedule', ['classes' => $classModel->upcomingActive(), 'title' => 'Class Schedule']);
+        $trainerModel = new TrainerModel();
+        $locationModel = new LocationModel();
+
+        $date = trim((string) ($_GET['date'] ?? ''));
+        $dateFrom = trim((string) ($_GET['date_from'] ?? ''));
+        $dateTo = trim((string) ($_GET['date_to'] ?? ''));
+        $trainerId = (int) ($_GET['trainer'] ?? 0);
+        $locationId = (int) ($_GET['location'] ?? 0);
+
+        if (!$date && !$dateFrom && !$dateTo) {
+            $dateFrom = date('Y-m-d');
+            $dateTo = date('Y-m-d', strtotime('+14 days'));
+        }
+
+        $classes = $classModel->upcomingActiveFiltered(
+            $date ?: null,
+            $trainerId ?: null,
+            $locationId ?: null,
+            $dateFrom ?: null,
+            $dateTo ?: null
+        );
+
+        $this->render('pages/schedule', [
+            'classes' => $classes,
+            'title' => 'Class Schedule',
+            'trainers' => $trainerModel->active(),
+            'locations' => $locationModel->active(),
+            'filters' => [
+                'date' => $date,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'trainer' => $trainerId,
+                'location' => $locationId
+            ]
+        ]);
     }
 
     public function locations(): void

@@ -35,6 +35,8 @@ return [
     ['POST', '/member/bookings/waitlist/cancel', 'MemberController', 'cancelWaitlist', 'member'],
     ['POST', '/member/payments/checkout', 'PaymentController', 'checkout', 'member'],
     ['POST', '/member/payments/resume', 'PaymentController', 'resumeCheckout', 'member'],
+    ['GET', '/member/invoices/download', 'MemberController', 'downloadInvoice', 'member'],
+    ['GET', '/member/invoices/status', 'MemberController', 'invoiceDownloadStatus', 'member'],
 
     ['POST', '/webhooks/stripe', 'PaymentController', 'stripeWebhook', 'public'],
 

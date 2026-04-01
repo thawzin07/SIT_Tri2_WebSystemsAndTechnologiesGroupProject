@@ -60,6 +60,28 @@ class PaymentModel extends BaseModel
         return null;
     }
 
+    public function findBySessionForUser(string $sessionId, int $userId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT
+                p.*,
+                mp.name AS plan_name,
+                i.id AS invoice_id,
+                i.invoice_no,
+                i.issued_at AS invoice_issued_at
+            FROM payments p
+            JOIN membership_plans mp ON mp.id = p.plan_id
+            LEFT JOIN invoices i ON i.payment_id = p.id
+            WHERE p.provider_session_id = :provider_session_id
+              AND p.user_id = :user_id
+            LIMIT 1');
+        $stmt->execute([
+            'provider_session_id' => $sessionId,
+            'user_id' => $userId,
+        ]);
+
+        return $stmt->fetch() ?: null;
+    }
+
     public function findBySessionOrIntentForUpdate(?string $sessionId, ?string $paymentIntentId): ?array
     {
         if ($sessionId) {
@@ -129,9 +151,15 @@ class PaymentModel extends BaseModel
 
     public function billingHistoryForUser(int $userId): array
     {
-        $stmt = $this->db->prepare('SELECT p.*, mp.name AS plan_name
+        $stmt = $this->db->prepare('SELECT
+                p.*,
+                mp.name AS plan_name,
+                i.id AS invoice_id,
+                i.invoice_no,
+                i.issued_at AS invoice_issued_at
             FROM payments p
             JOIN membership_plans mp ON mp.id = p.plan_id
+            LEFT JOIN invoices i ON i.payment_id = p.id
             WHERE p.user_id = :user_id
             ORDER BY p.id DESC');
         $stmt->execute(['user_id' => $userId]);

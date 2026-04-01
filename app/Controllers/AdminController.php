@@ -354,6 +354,10 @@ class AdminController extends Controller
             'opening_hours' => trim((string) $_POST['opening_hours']),
             'image_path' => '',
             'status' => ($_POST['status'] ?? 'inactive') === 'active' ? 'active' : 'inactive',
+            'latitude'      => trim($_POST['latitude'] ?? ''),
+            'longitude'     => trim($_POST['longitude'] ?? ''),
+            'map_place_id'  => trim($_POST['map_place_id'] ?? ''),
+            'image_path'    => trim($_POST['image_path'] ?? '')
         ];
     }
 
