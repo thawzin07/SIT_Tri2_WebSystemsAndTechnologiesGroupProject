@@ -67,6 +67,8 @@ return [
     ['POST', '/admin/locations/delete', 'AdminController', 'deleteLocation', 'admin'],
 
     ['GET', '/admin/bookings', 'AdminController', 'bookings', 'admin'],
+    ['GET', '/admin/bookings/create', 'AdminController', 'showCreateBooking', 'admin'],
+    ['POST', '/admin/bookings/create', 'AdminController', 'createBooking', 'admin'],
     ['POST', '/admin/bookings/update', 'AdminController', 'updateBooking', 'admin'],
     ['POST', '/admin/bookings/delete', 'AdminController', 'deleteBooking', 'admin'],
 

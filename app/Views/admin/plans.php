@@ -1,4 +1,5 @@
 <section class="container page-shell">
+  <?php partial('back_button', ['label' => 'Back', 'fallback' => '/admin/dashboard']); ?>
   <h1 class="section-title">Manage Membership Plans</h1>
   <p class="section-subtitle">Create and update available subscription plans and pricing.</p>
 

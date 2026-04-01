@@ -287,6 +287,107 @@
     });
   };
 
+  const enhanceAdminBookingCreate = () => {
+    const memberFilter = document.querySelector("[data-booking-member-filter]");
+    const memberList = document.querySelector("[data-booking-member-list]");
+    const selectAll = document.querySelector("[data-booking-select-all]");
+    const selectedCount = document.querySelector("[data-booking-selected-count]");
+
+    if (!memberFilter || !memberList || !selectAll || !selectedCount) {
+      return;
+    }
+
+    const memberItems = Array.from(memberList.querySelectorAll("[data-booking-member-item]"));
+    const checkboxes = Array.from(memberList.querySelectorAll("[data-booking-member-checkbox]"));
+
+    const updateSelectedCount = () => {
+      const totalSelected = checkboxes.filter((checkbox) => checkbox.checked).length;
+      selectedCount.textContent = `${totalSelected} selected`;
+    };
+
+    const updateSelectAllState = () => {
+      const visibleCheckboxes = memberItems
+        .filter((item) => item.style.display !== "none")
+        .map((item) => item.querySelector("[data-booking-member-checkbox]"))
+        .filter(Boolean);
+
+      if (visibleCheckboxes.length === 0) {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+        return;
+      }
+
+      const checkedCount = visibleCheckboxes.filter((checkbox) => checkbox.checked).length;
+      selectAll.checked = checkedCount === visibleCheckboxes.length;
+      selectAll.indeterminate = checkedCount > 0 && checkedCount < visibleCheckboxes.length;
+    };
+
+    memberFilter.addEventListener("input", () => {
+      const keyword = memberFilter.value.trim().toLowerCase();
+      memberItems.forEach((item) => {
+        const haystack = (item.getAttribute("data-booking-search") || "").toLowerCase();
+        item.style.display = keyword === "" || haystack.includes(keyword) ? "" : "none";
+      });
+      updateSelectAllState();
+    });
+
+    selectAll.addEventListener("change", () => {
+      memberItems.forEach((item) => {
+        if (item.style.display === "none") {
+          return;
+        }
+        const checkbox = item.querySelector("[data-booking-member-checkbox]");
+        if (checkbox) {
+          checkbox.checked = selectAll.checked;
+        }
+      });
+      updateSelectedCount();
+      updateSelectAllState();
+    });
+
+    checkboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        updateSelectedCount();
+        updateSelectAllState();
+      });
+    });
+
+    updateSelectedCount();
+    updateSelectAllState();
+  };
+
+  const enhanceSmartBackLinks = () => {
+    const links = document.querySelectorAll("[data-smart-back]");
+    if (!links.length) {
+      return;
+    }
+
+    links.forEach((link) => {
+      const fallback = link.getAttribute("data-fallback") || "/";
+      let target = fallback;
+
+      try {
+        if (document.referrer) {
+          const referrerUrl = new URL(document.referrer, window.location.origin);
+          if (referrerUrl.origin === window.location.origin) {
+            const samePage = referrerUrl.pathname === window.location.pathname;
+            if (!samePage) {
+              target = `${referrerUrl.pathname}${referrerUrl.search}${referrerUrl.hash}`;
+            }
+          }
+        }
+      } catch (error) {
+        target = fallback;
+      }
+
+      link.setAttribute("href", target);
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        window.location.replace(target);
+      });
+    });
+  };
+
   const animateCards = () => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
@@ -517,6 +618,8 @@
   enhanceValidation();
   enhanceResponsiveTables();
   enhanceAdminFilters();
+  enhanceAdminBookingCreate();
+  enhanceSmartBackLinks();
   animateCards();
   enhanceChatbot();
   enhanceProfileImageUpload();

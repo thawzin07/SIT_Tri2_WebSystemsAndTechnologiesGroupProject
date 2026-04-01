@@ -7,6 +7,8 @@ require_once __DIR__ . '/../bootstrap.php';
 $routes = config('routes');
 
 $requiredRoutes = [
+    ['GET', '/admin/bookings/create', 'AdminController', 'showCreateBooking', 'admin'],
+    ['POST', '/admin/bookings/create', 'AdminController', 'createBooking', 'admin'],
     ['POST', '/member/bookings/waitlist/cancel', 'MemberController', 'cancelWaitlist', 'member'],
     ['POST', '/member/bookings/book', 'MemberController', 'bookClass', 'member'],
     ['POST', '/member/bookings/cancel', 'MemberController', 'cancelBooking', 'member'],
