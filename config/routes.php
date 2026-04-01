@@ -25,6 +25,7 @@ return [
     ['GET', '/member/dashboard', 'MemberController', 'dashboard', 'member'],
     ['GET', '/member/profile', 'MemberController', 'profile', 'member'],
     ['POST', '/member/profile', 'MemberController', 'updateProfile', 'member'],
+    ['POST', '/member/profile/delete', 'MemberController', 'deleteProfile', 'member'],
     ['POST', '/member/membership/subscribe', 'MemberController', 'subscribe', 'member'],
     ['POST', '/member/membership/renew', 'MemberController', 'renew', 'member'],
     ['POST', '/member/membership/cancel', 'MemberController', 'cancelMembership', 'member'],
