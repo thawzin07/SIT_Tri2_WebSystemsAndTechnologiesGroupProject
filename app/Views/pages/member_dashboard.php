@@ -113,14 +113,16 @@
                 <td><?= e((string) ($payment['paid_at'] ?? '-')) ?></td>
                 <td><?= e((string) $payment['created_at']) ?></td>
                 <td>
-                  <?php if (in_array((string) $payment['status'], ['pending', 'failed'], true)): ?>
+                  <?php if (!empty($payment['invoice_id'])): ?>
+                    <a class="btn btn-sm btn-outline-primary" href="/member/invoices/download?payment_id=<?= (int) $payment['id'] ?>">Download</a>
+                  <?php elseif (in_array((string) $payment['status'], ['pending', 'failed'], true)): ?>
                     <form action="/member/payments/resume" method="post">
                       <?= csrf_input() ?>
                       <input type="hidden" name="payment_id" value="<?= (int) $payment['id'] ?>">
                       <button class="btn btn-sm btn-outline-primary" type="submit">Resume</button>
                     </form>
                   <?php else: ?>
-                    <span class="text-muted small">Ready for invoice</span>
+                    <span class="text-muted small">No invoice available</span>
                   <?php endif; ?>
                 </td>
               </tr>
@@ -171,3 +173,66 @@
     <?php endif; ?>
   </div>
 </section>
+
+<?php if (!empty($autoInvoiceSessionId)): ?>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var sessionId = <?= json_encode((string) $autoInvoiceSessionId) ?>;
+      var initialDownloadUrl = <?= json_encode($autoInvoiceDownloadUrl) ?>;
+      var storageKey = 'invoice-auto-downloaded:' + sessionId;
+
+      if (!sessionId || sessionStorage.getItem(storageKey) === '1') {
+        return;
+      }
+
+      var triggerDownload = function (url) {
+        sessionStorage.setItem(storageKey, '1');
+        var frame = document.createElement('iframe');
+        frame.style.display = 'none';
+        frame.src = url;
+        document.body.appendChild(frame);
+      };
+
+      if (initialDownloadUrl) {
+        triggerDownload(initialDownloadUrl);
+        return;
+      }
+
+      var attempts = 0;
+      var maxAttempts = 10;
+      var intervalMs = 1500;
+
+      var poll = function () {
+        attempts += 1;
+
+        fetch('/member/invoices/status?session_id=' + encodeURIComponent(sessionId), {
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error('Invoice status request failed.');
+            }
+            return response.json();
+          })
+          .then(function (data) {
+            if (data && data.ready && data.download_url) {
+              triggerDownload(data.download_url);
+              return;
+            }
+
+            if (attempts < maxAttempts) {
+              window.setTimeout(poll, intervalMs);
+            }
+          })
+          .catch(function () {
+            if (attempts < maxAttempts) {
+              window.setTimeout(poll, intervalMs);
+            }
+          });
+      };
+
+      window.setTimeout(poll, 800);
+    });
+  </script>
+<?php endif; ?>

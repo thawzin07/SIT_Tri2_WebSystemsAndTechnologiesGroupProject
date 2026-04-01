@@ -6,12 +6,14 @@ use App\Core\Controller;
 use App\Core\Validator;
 use App\Models\BookingModel;
 use App\Models\ClassWaitlistModel;
+use App\Models\InvoiceModel;
 use App\Models\GymClassModel;
 use App\Models\MembershipModel;
 use App\Models\MembershipPlanModel;
 use App\Models\PaymentModel;
 use App\Models\UserModel;
 use App\Services\BookingService;
+use App\Services\InvoicePdfService;
 
 class MemberController extends Controller
 {
@@ -27,6 +29,7 @@ class MemberController extends Controller
         $membership = $membershipModel->currentForUser((int) $user['id']);
 
         $paymentState = (string) ($_GET['payment'] ?? '');
+        $successSessionId = trim((string) ($_GET['session_id'] ?? ''));
         if ($paymentState === 'success') {
             flash('success', 'Payment received. Final confirmation may take a few seconds.');
         } elseif ($paymentState === 'cancelled') {
@@ -42,6 +45,14 @@ class MemberController extends Controller
             }
         }
 
+        $autoInvoiceDownloadUrl = null;
+        if ($paymentState === 'success' && $successSessionId !== '') {
+            $successfulPayment = $paymentModel->findBySessionForUser($successSessionId, (int) $user['id']);
+            if ($successfulPayment && !empty($successfulPayment['invoice_id'])) {
+                $autoInvoiceDownloadUrl = '/member/invoices/download?payment_id=' . (int) $successfulPayment['id'];
+            }
+        }
+
         $this->render('pages/member_dashboard', [
             'title' => 'Member Dashboard',
             'membership' => $membership,
@@ -52,6 +63,8 @@ class MemberController extends Controller
             'pendingPayment' => $paymentModel->findLatestPendingForUser((int) $user['id']),
             'failedPayment' => $paymentModel->findRecentFailedForUser((int) $user['id']),
             'expiringSoon' => $expiringSoon,
+            'autoInvoiceDownloadUrl' => $autoInvoiceDownloadUrl,
+            'autoInvoiceSessionId' => $paymentState === 'success' ? $successSessionId : '',
         ]);
     }
 
@@ -229,6 +242,135 @@ class MemberController extends Controller
 
         $cancelled = (new ClassWaitlistModel())->cancelByMember($waitlistId, (int) current_user()['id']);
         flash($cancelled ? 'success' : 'error', $cancelled ? 'Removed from waitlist.' : 'Unable to remove waitlist entry.');
+<<<<<<< Updated upstream
         redirect('/member/bookings');
+=======
+        redirect($redirectTo);
+    }
+
+    public function downloadInvoice(): void
+    {
+        $this->requireMember();
+
+        $paymentId = (int) ($_GET['payment_id'] ?? 0);
+        if ($paymentId < 1) {
+            flash('error', 'Invalid invoice request.');
+            redirect('/member/dashboard#billing');
+        }
+
+        $user = current_user();
+        $invoice = (new InvoiceModel())->findDownloadDataByPaymentIdForUser($paymentId, (int) $user['id']);
+        if ($invoice === null) {
+            flash('error', 'Invoice not found for this payment.');
+            redirect('/member/dashboard#billing');
+        }
+
+        (new InvoicePdfService())->streamInvoice($invoice);
+    }
+
+    public function invoiceDownloadStatus(): void
+    {
+        $this->requireMember();
+
+        $sessionId = trim((string) ($_GET['session_id'] ?? ''));
+        header('Content-Type: application/json');
+
+        if ($sessionId === '') {
+            echo json_encode(['ready' => false]);
+            return;
+        }
+
+        $user = current_user();
+        $payment = (new PaymentModel())->findBySessionForUser($sessionId, (int) $user['id']);
+        if (!$payment || empty($payment['invoice_id'])) {
+            echo json_encode(['ready' => false]);
+            return;
+        }
+
+        echo json_encode([
+            'ready' => true,
+            'download_url' => '/member/invoices/download?payment_id=' . (int) $payment['id'],
+        ]);
+    }
+
+    private function resolveRedirectTarget(string $defaultPath): string
+    {
+        $target = trim((string) ($_POST['redirect_to'] ?? ''));
+        if ($target === '') {
+            return $defaultPath;
+        }
+
+        $allowedPaths = [
+            '/member/bookings',
+            '/member/dashboard',
+            '/schedule',
+        ];
+
+        $path = parse_url($target, PHP_URL_PATH);
+        if (!is_string($path) || !in_array($path, $allowedPaths, true)) {
+            return $defaultPath;
+        }
+
+        return $target;
+    }
+
+    private function storeProfileImage(array $file, int $userId, string $existingImagePath): string
+    {
+        $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('Unable to upload image. Please try a different file.');
+        }
+
+        $size = (int) ($file['size'] ?? 0);
+        if ($size < 1 || $size > (3 * 1024 * 1024)) {
+            throw new \RuntimeException('Profile image must be under 3MB.');
+        }
+
+        $tmpName = (string) ($file['tmp_name'] ?? '');
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new \RuntimeException('Invalid upload source.');
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = (string) $finfo->file($tmpName);
+        $allowed = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+        ];
+
+        if (!isset($allowed[$mimeType])) {
+            throw new \RuntimeException('Only JPG, PNG, WEBP, or GIF images are allowed.');
+        }
+
+        $relativeDirectory = '/assets/images/profiles';
+        $absoluteDirectory = dirname(__DIR__, 2) . '/public' . $relativeDirectory;
+        if (!is_dir($absoluteDirectory) && !mkdir($absoluteDirectory, 0775, true) && !is_dir($absoluteDirectory)) {
+            throw new \RuntimeException('Unable to prepare profile image directory.');
+        }
+
+        $fileName = 'profile-' . $userId . '-' . date('YmdHis') . '-' . bin2hex(random_bytes(3)) . '.' . $allowed[$mimeType];
+        $absolutePath = $absoluteDirectory . '/' . $fileName;
+        if (!move_uploaded_file($tmpName, $absolutePath)) {
+            throw new \RuntimeException('Failed to save uploaded image.');
+        }
+
+        $this->removeProfileImage($existingImagePath);
+
+        return $relativeDirectory . '/' . $fileName;
+    }
+
+    private function removeProfileImage(string $relativePath): void
+    {
+        if ($relativePath === '' || !str_starts_with($relativePath, '/assets/images/profiles/')) {
+            return;
+        }
+
+        $absolutePath = dirname(__DIR__, 2) . '/public' . $relativePath;
+        if (is_file($absolutePath)) {
+            @unlink($absolutePath);
+        }
+>>>>>>> Stashed changes
     }
 }

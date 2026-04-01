@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Core\Database;
+use App\Models\InvoiceModel;
 use App\Models\MembershipModel;
 use App\Models\MembershipPlanModel;
 use App\Models\NotificationLogModel;
@@ -16,6 +17,7 @@ class PaymentService
 {
     private PDO $db;
     private PaymentModel $paymentModel;
+    private InvoiceModel $invoiceModel;
     private MembershipModel $membershipModel;
     private MembershipPlanModel $planModel;
     private NotificationLogModel $notificationLogModel;
@@ -26,6 +28,7 @@ class PaymentService
     {
         $this->db = Database::connection();
         $this->paymentModel = new PaymentModel();
+        $this->invoiceModel = new InvoiceModel();
         $this->membershipModel = new MembershipModel();
         $this->planModel = new MembershipPlanModel();
         $this->notificationLogModel = new NotificationLogModel();
@@ -164,6 +167,7 @@ class PaymentService
             }
 
             if (($payment['status'] ?? '') === 'paid' && !empty($payment['membership_id'])) {
+                $this->ensureInvoiceExists($payment);
                 $this->db->commit();
                 return;
             }
@@ -180,6 +184,7 @@ class PaymentService
                 $payment['membership_id'] = $membershipId;
             }
 
+            $invoice = $this->ensureInvoiceExists($payment);
             $this->queueNotificationHooks($payment);
             $this->db->commit();
         } catch (Throwable $e) {
@@ -320,6 +325,36 @@ class PaymentService
             'member_telegram_placeholder',
             $payload
         );
+    }
+
+    private function ensureInvoiceExists(array $payment): array
+    {
+        $existingInvoice = $this->invoiceModel->findByPaymentId((int) $payment['id']);
+        if ($existingInvoice) {
+            return $existingInvoice;
+        }
+
+        $issuedAt = date('Y-m-d H:i:s');
+        $invoiceNo = 'INV-' . date('Ymd') . '-' . str_pad((string) ((int) $payment['id']), 4, '0', STR_PAD_LEFT);
+
+        $this->invoiceModel->createForPayment([
+            'payment_id' => (int) $payment['id'],
+            'user_id' => (int) $payment['user_id'],
+            'invoice_no' => $invoiceNo,
+            'subtotal' => (float) $payment['amount'],
+            'tax' => 0.00,
+            'total' => (float) $payment['amount'],
+            'currency' => (string) $payment['currency'],
+            'pdf_path' => 'generated-on-demand',
+            'issued_at' => $issuedAt,
+        ]);
+
+        $createdInvoice = $this->invoiceModel->findByPaymentId((int) $payment['id']);
+        if (!$createdInvoice) {
+            throw new RuntimeException('Invoice creation failed after payment completion.');
+        }
+
+        return $createdInvoice;
     }
 
     private function guardAgainstTamperedMetadata(array $payment, array $metadata): void
