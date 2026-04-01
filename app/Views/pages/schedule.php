@@ -1,6 +1,52 @@
 <section class="container page-shell">
   <h1 class="section-title">Class Schedule</h1>
   <p class="section-subtitle">Browse upcoming sessions by date, trainer, and location. Members can book directly from this page.</p>
+  
+  <!-- Filter Form -->
+  <form method="get" class="card p-3 mb-4">
+    <h2 class="h6 mb-3">Filter Classes</h2>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label for="date_from" class="form-label">Date from</label>
+        <input type="date" id="date_from" name="date_from" class="form-control" value="<?= e($filters['date_from']) ?>">
+      </div>
+      <div class="col-md-4">
+        <label for="date_to" class="form-label">Date to</label>
+        <input type="date" id="date_to" name="date_to" class="form-control" value="<?= e($filters['date_to']) ?>">
+      </div>
+      <div class="col-md-4">
+        <label for="date" class="form-label">Specific date (optional)</label>
+        <input type="date" id="date" name="date" class="form-control" value="<?= e($filters['date']) ?>">
+      </div>
+      <div class="col-md-4">
+        <label for="trainer" class="form-label">Trainer</label>
+        <select id="trainer" name="trainer" class="form-select">
+          <option value="">All Trainers</option>
+          <?php foreach ($trainers as $trainer): ?>
+            <option value="<?= (int)$trainer['id'] ?>" <?= $filters['trainer'] == $trainer['id'] ? 'selected' : '' ?>>
+              <?= e($trainer['name']) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label for="location" class="form-label">Location</label>
+        <select id="location" name="location" class="form-select">
+          <option value="">All Locations</option>
+          <?php foreach ($locations as $location): ?>
+            <option value="<?= (int)$location['id'] ?>" <?= $filters['location'] == $location['id'] ? 'selected' : '' ?>>
+              <?= e($location['name']) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </div>
+    <div class="mt-3">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a href="/schedule" class="btn btn-outline-secondary">Clear Filters</a>
+    </div>
+  </form>
+  
   <?php $scheduleUser = current_user(); ?>
   <?php $isMemberUser = is_member(); ?>
   <?php if (empty($classes)): ?>
