@@ -301,30 +301,34 @@ class PaymentService
 
     private function queueNotificationHooks(array $payment): void
     {
-        $payload = [
-            'payment_id' => (int) $payment['id'],
-            'plan_id' => (int) $payment['plan_id'],
-            'payment_type' => (string) $payment['payment_type'],
-            'amount' => (float) $payment['amount'],
-            'currency' => (string) $payment['currency'],
-        ];
+    $userModel = new \App\Models\UserModel();
+    $user = $userModel->find((int) $payment['user_id']);
 
-        $this->notificationLogModel->queue(
-            (int) $payment['user_id'],
-            'email',
-            'payment_success',
-            'member_email_placeholder',
-            $payload
-        );
+    $payload = [
+        'payment_id'   => (int) $payment['id'],
+        'user_id'      => (int) $payment['user_id'], // Added this!
+        'plan_id'      => (int) $payment['plan_id'],
+        'payment_type' => (string) $payment['payment_type'],
+        'amount'       => (float) $payment['amount'],
+        'currency'     => (string) $payment['currency'],
+    ];
 
-        $eventType = ($payment['payment_type'] ?? '') === 'renew' ? 'membership_renewed' : 'payment_success';
-        $this->notificationLogModel->queue(
-            (int) $payment['user_id'],
-            'telegram',
-            $eventType,
-            'member_telegram_placeholder',
-            $payload
-        );
+    $this->notificationLogModel->queue(
+        (int) $payment['user_id'],
+        'email',
+        'payment_success',
+        $user['email'], 
+        $payload
+    );
+
+    $eventType = ($payment['payment_type'] ?? '') === 'renew' ? 'membership_renewed' : 'payment_success';
+    $this->notificationLogModel->queue(
+        (int) $payment['user_id'],
+        'telegram',
+        $eventType,
+        $user['telegram_chat_id'] ?? '', 
+        $payload
+    );
     }
 
     private function ensureInvoiceExists(array $payment): array

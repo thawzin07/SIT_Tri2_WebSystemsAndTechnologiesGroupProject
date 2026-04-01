@@ -288,9 +288,6 @@ class MemberController extends Controller
 
         $cancelled = (new ClassWaitlistModel())->cancelByMember($waitlistId, (int) current_user()['id']);
         flash($cancelled ? 'success' : 'error', $cancelled ? 'Removed from waitlist.' : 'Unable to remove waitlist entry.');
-<<<<<<< Updated upstream
-        redirect('/member/bookings');
-=======
         redirect($redirectTo);
     }
 
@@ -417,6 +414,5 @@ class MemberController extends Controller
         if (is_file($absolutePath)) {
             @unlink($absolutePath);
         }
->>>>>>> Stashed changes
     }
 }

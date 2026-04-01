@@ -60,67 +60,74 @@ class NotificationLogModel extends BaseModel
 
     private function processEmail($toEmail, $eventType, $payload)
     {
-        if (!class_exists(PHPMailer::class)) {
-            echo "Skipping Email: PHPMailer is not installed on this machine.\n";
-            return false;
-        }
+    if (!class_exists(PHPMailer::class)) return false;
 
-        $subject = "PulsePoint Update";
-        $message = "Hello! This is a notification from PulsePoint.";
+    $mail = new PHPMailer(true);
+    $subject = "PulsePoint Fitness Update";
+    $message = "Your payment was processed successfully.";
 
-        if ($eventType === 'payment_success') {
-            $subject = "Payment Successful - Invoice " . ($payload['invoice_no'] ?? '');
-            $message = "<h2>Thank you for your payment!</h2><p>Amount: $" . ($payload['amount'] ?? '') . "</p>";
-        }
+    if ($eventType === 'payment_success' || $eventType === 'membership_renewed') {
+        $invoiceModel = new \App\Models\InvoiceModel();
+        $invoiceData = $invoiceModel->findDownloadDataByPaymentIdForUser(
+            (int)$payload['payment_id'], 
+            (int)$payload['user_id']
+        );
 
-        $mail = new PHPMailer(true);
+        if ($invoiceData) {
+            $subject = "Invoice from PulsePoint Fitness - " . $invoiceData['invoice_no'];
+            $message = "<h1>Hi " . e($invoiceData['full_name']) . "!</h1>" .
+                       "<p>Your payment for <b>" . e($invoiceData['plan_name']) . "</b> was successful.</p>" .
+                       "<p>Please find your receipt attached to this email.</p>";
 
-        try {
-            $mail->isSMTP();
-            $mail->Host       = 'smtp.gmail.com';
-            $mail->SMTPAuth   = true;
-            $mail->Username   = $_ENV['SMTP_USERNAME'] ?? getenv('SMTP_USERNAME'); 
-            $mail->Password   = $_ENV['SMTP_PASSWORD'] ?? getenv('SMTP_PASSWORD');
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port       = 587;
-
-            $mail->setFrom($mail->Username, 'PulsePoint Fitness');
-            $mail->addAddress($toEmail);
-
-            $mail->isHTML(true);
-            $mail->Subject = $subject;
-            $mail->Body    = $message;
-
-            $mail->send();
-            return true;
-        } catch (Exception $e) {
-            echo "Email Error: {$mail->ErrorInfo}\n";
-            return false;
+            $pdfService = new \App\Services\InvoicePdfService();
+            $pdfContent = $pdfService->generateInvoicePdf($invoiceData);
+            $fileName = "PulsePoint-" . $invoiceData['invoice_no'] . ".pdf";
+            
+            $mail->addStringAttachment($pdfContent, $fileName);
         }
     }
 
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $_ENV['SMTP_USERNAME'];
+        $mail->Password   = $_ENV['SMTP_PASSWORD'];
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+
+        $mail->setFrom($mail->Username, 'PulsePoint Fitness');
+        $mail->addAddress($toEmail);
+        $mail->isHTML(true);
+        $mail->Subject = $subject;
+        $mail->Body    = $message;
+
+        return $mail->send();
+    } catch (\Exception $e) {
+        return false;
+    }
+}
+
     private function processTelegram($chatId, $eventType, $payload)
     {
-        $message = "PulsePoint Notification";
+    if (empty($chatId)) return false;
 
-        if ($eventType === 'invoice_sent') {
-            $message = "<b>New Invoice Generated</b>\nInvoice Number: " . ($payload['invoice_no'] ?? '');
-        }
+    $isRenew = ($eventType === 'membership_renewed' || ($payload['payment_type'] ?? '') === 'renew');
+    $icon = $isRenew ? "🔄" : "🆕";
+    $label = $isRenew ? "Membership Renewed" : "New Membership Purchased";
 
-        $url = "https://api.telegram.org/bot" . $this->telegramBotToken . "/sendMessage";
-        $data = ['chat_id' => $chatId, 'text' => $message, 'parse_mode' => 'HTML'];
+    $message = "{$icon} <b>{$label}</b>\n\n";
+    $message .= "<b>Amount:</b> " . ($payload['currency'] ?? 'USD') . " " . number_format($payload['amount'] ?? 0, 2) . "\n";
+    $message .= "Check your email for the official invoice PDF!";
 
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        $response = curl_exec($ch); 
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $url = "https://api.telegram.org/bot" . $this->telegramBotToken . "/sendMessage";
+    $data = ['chat_id' => $chatId, 'text' => $message, 'parse_mode' => 'HTML'];
 
-        if ($httpCode != 200) {
-            echo "Telegram API Error: " . $response . "\n";
-        }
-
-        return ($httpCode == 200);
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+    $response = curl_exec($ch);
+    return (curl_getinfo($ch, CURLINFO_HTTP_CODE) == 200);
     }
 }
