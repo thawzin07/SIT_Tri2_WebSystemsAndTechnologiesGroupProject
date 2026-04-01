@@ -9,11 +9,12 @@
   
   <div class="row g-3">
     <?php foreach ($locations as $location): ?>
+      <?php $locationImageUrl = media_url((string) ($location['image_path'] ?? ''), 'location'); ?>
       <div class="col-md-6">
         <article class="card h-100">
           <div class="location-card-image">
-              <?php if (!empty($location['image_path'])): ?>
-                  <img src="/<?= e($location['image_path']) ?>" class="card-img-top w-100" alt="<?= e($location['name']) ?>" style="height: 200px; object-fit: cover;">
+              <?php if ($locationImageUrl !== ''): ?>
+                  <img src="<?= e($locationImageUrl) ?>" class="card-img-top w-100" alt="<?= e($location['name']) ?>" style="height: 200px; object-fit: cover;">
               <?php else: ?>
                   <div class="location-card-placeholder d-flex align-items-center justify-content-center bg-light" style="height: 200px;">
                       <span class="text-muted">No Image Available</span>

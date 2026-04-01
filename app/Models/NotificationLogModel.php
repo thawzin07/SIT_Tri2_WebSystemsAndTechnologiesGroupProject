@@ -6,7 +6,7 @@ use PHPMailer\PHPMailer\Exception;
 
 class NotificationLogModel extends BaseModel
 {
-    private $telegramBotToken;
+    private string $telegramBotToken = '';
 
     public function queue(int $userId, string $channel, string $eventType, string $target, array $payload = []): void
     {
@@ -27,7 +27,8 @@ class NotificationLogModel extends BaseModel
     public function __construct()
     {
         parent::__construct();
-        $this->telegramBotToken = $_ENV['TELEGRAM_BOT_TOKEN'];
+        $token = $_ENV['TELEGRAM_BOT_TOKEN'] ?? getenv('TELEGRAM_BOT_TOKEN') ?: '';
+        $this->telegramBotToken = is_string($token) ? trim($token) : '';
     }
 
     public function processQueue()
@@ -62,6 +63,10 @@ class NotificationLogModel extends BaseModel
     {
     if (!class_exists(PHPMailer::class)) return false;
 
+    $smtpUsername = $_ENV['SMTP_USERNAME'] ?? getenv('SMTP_USERNAME') ?: '';
+    $smtpPassword = $_ENV['SMTP_PASSWORD'] ?? getenv('SMTP_PASSWORD') ?: '';
+    if ($smtpUsername === '' || $smtpPassword === '') return false;
+
     $mail = new PHPMailer(true);
     $subject = "PulsePoint Fitness Update";
     $message = "Your payment was processed successfully.";
@@ -91,8 +96,8 @@ class NotificationLogModel extends BaseModel
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = $_ENV['SMTP_USERNAME'];
-        $mail->Password   = $_ENV['SMTP_PASSWORD'];
+        $mail->Username   = $smtpUsername;
+        $mail->Password   = $smtpPassword;
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
@@ -110,7 +115,7 @@ class NotificationLogModel extends BaseModel
 
     private function processTelegram($chatId, $eventType, $payload)
     {
-    if (empty($chatId)) return false;
+    if (empty($chatId) || $this->telegramBotToken === '') return false;
 
     $isRenew = ($eventType === 'membership_renewed' || ($payload['payment_type'] ?? '') === 'renew');
     $icon = $isRenew ? "🔄" : "🆕";

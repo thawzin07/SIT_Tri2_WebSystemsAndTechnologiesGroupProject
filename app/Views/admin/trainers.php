@@ -28,7 +28,10 @@
       <thead><tr><th>ID</th><th>Photo</th><th>Name</th><th>Specialty</th><th>Bio</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         <?php foreach ($trainers as $t): ?>
-          <?php $hasPhoto = !empty($t['image_path']); ?>
+          <?php
+            $trainerImage = media_url((string) ($t['image_path'] ?? ''), 'trainer');
+            $hasPhoto = $trainerImage !== '';
+          ?>
           <tr>
             <form action="/admin/trainers/update" method="post" enctype="multipart/form-data">
               <?= csrf_input() ?>
@@ -36,7 +39,7 @@
               <td>
                 <div id="trainer-photo-preview-<?= (int)$t['id'] ?>" class="trainer-photo-preview" data-empty-text="-">
                   <?php if ($hasPhoto): ?>
-                    <img src="<?= e($t['image_path']) ?>" alt="Trainer photo" class="trainer-photo-img">
+                    <img src="<?= e($trainerImage) ?>" alt="Trainer photo" class="trainer-photo-img">
                   <?php else: ?>
                     <span class="trainer-photo-placeholder">-</span>
                   <?php endif; ?>

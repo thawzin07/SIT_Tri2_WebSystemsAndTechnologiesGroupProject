@@ -6,7 +6,7 @@ class GymClassModel extends BaseModel
 {
     public function upcomingActive(): array
     {
-        $sql = 'SELECT c.*, t.name AS trainer_name, l.name AS location_name,
+        $sql = 'SELECT c.*, t.name AS trainer_name, t.image_path AS trainer_image_path, l.name AS location_name, l.image_path AS location_image_path,
                 (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.booking_status = "booked") AS booked_count
                 ,(SELECT COUNT(*) FROM class_waitlist w WHERE w.class_id = c.id AND w.waitlist_status = "waiting") AS waitlist_count
                 FROM classes c
@@ -21,7 +21,7 @@ class GymClassModel extends BaseModel
 
     public function all(): array
     {
-        $sql = 'SELECT c.*, t.name AS trainer_name, l.name AS location_name FROM classes c JOIN trainers t ON t.id = c.trainer_id JOIN gym_locations l ON l.id = c.location_id ORDER BY c.class_date DESC, c.start_time DESC';
+        $sql = 'SELECT c.*, t.name AS trainer_name, t.image_path AS trainer_image_path, l.name AS location_name, l.image_path AS location_image_path FROM classes c JOIN trainers t ON t.id = c.trainer_id JOIN gym_locations l ON l.id = c.location_id ORDER BY c.class_date DESC, c.start_time DESC';
         $stmt = $this->db->query($sql);
         return $stmt->fetchAll();
     }
@@ -54,7 +54,7 @@ class GymClassModel extends BaseModel
 
     public function upcomingActiveFiltered(?string $date = null, ?int $trainerId = null, ?int $locationId = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
-        $sql = 'SELECT c.*, t.name AS trainer_name, l.name AS location_name,
+        $sql = 'SELECT c.*, t.name AS trainer_name, t.image_path AS trainer_image_path, l.name AS location_name, l.image_path AS location_image_path,
                 (SELECT COUNT(*) FROM bookings b WHERE b.class_id = c.id AND b.booking_status = "booked") AS booked_count,
                 (SELECT COUNT(*) FROM class_waitlist w WHERE w.class_id = c.id AND w.waitlist_status = "waiting") AS waitlist_count
                 FROM classes c

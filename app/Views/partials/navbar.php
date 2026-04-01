@@ -11,12 +11,12 @@
         <li class="nav-item"><a class="nav-link" data-nav-link href="/plans">Plans</a></li>
         <li class="nav-item"><a class="nav-link" data-nav-link href="/schedule">Classes</a></li>
         <li class="nav-item"><a class="nav-link" data-nav-link href="/trainers">Trainers</a></li>
+        <li class="nav-item"><a class="nav-link" data-nav-link href="/locations">Locations</a></li>
 
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">More</a>
           <ul class="dropdown-menu dropdown-menu-end">
             <li><a class="dropdown-item" data-nav-link href="/about">About</a></li>
-            <li><a class="dropdown-item" data-nav-link href="/locations">Locations</a></li>
             <li><a class="dropdown-item" data-nav-link href="/contact">Contact</a></li>
             <li><a class="dropdown-item" data-nav-link href="/faq">FAQ</a></li>
           </ul>
@@ -45,7 +45,7 @@
           <?php endif; ?>
           <?php if ((($user['role_name'] ?? '') === 'member')): ?>
             <?php
-              $imagePath = (string) ($user['profile_image_path'] ?? '');
+              $imagePath = media_url((string) ($user['profile_image_path'] ?? ''), 'profile');
               $hasProfileImage = $imagePath !== '';
               $nameWords = preg_split('/\s+/', trim((string) ($user['full_name'] ?? ''))) ?: [];
               $initials = '';

@@ -54,14 +54,35 @@
   <p class="section-subtitle">Popular upcoming sessions available for members.</p>
   <div class="row g-3">
     <?php foreach ($classes as $class): ?>
+      <?php
+        $classLocationImage = media_url((string) ($class['location_image_path'] ?? ''), 'location');
+        $classTrainerImage = media_url((string) ($class['trainer_image_path'] ?? ''), 'trainer');
+        $spotsLeft = max(0, (int) $class['capacity'] - (int) $class['booked_count']);
+      ?>
       <div class="col-md-4">
-        <article class="card h-100">
+        <article class="card h-100 home-class-card">
+          <div class="home-class-image-wrap">
+            <?php if ($classLocationImage !== ''): ?>
+              <img src="<?= e($classLocationImage) ?>" alt="<?= e($class['location_name']) ?>" class="home-class-image">
+            <?php else: ?>
+              <div class="home-class-image home-class-image-fallback">Gym</div>
+            <?php endif; ?>
+            <span class="home-class-location"><?= e($class['location_name']) ?></span>
+          </div>
           <div class="card-body">
             <h3 class="h5"><?= e($class['title']) ?></h3>
-            <p class="mb-1"><strong>Date:</strong> <?= e($class['class_date']) ?></p>
-            <p class="mb-1"><strong>Time:</strong> <?= e(substr($class['start_time'],0,5)) ?> - <?= e(substr($class['end_time'],0,5)) ?></p>
-            <p class="mb-1"><strong>Trainer:</strong> <?= e($class['trainer_name']) ?></p>
-            <p class="mb-0"><strong>Spots left:</strong> <?= max(0, (int)$class['capacity'] - (int)$class['booked_count']) ?></p>
+            <p class="mb-2 text-muted"><?= e($class['class_date']) ?> | <?= e(substr($class['start_time'],0,5)) ?> - <?= e(substr($class['end_time'],0,5)) ?></p>
+            <div class="home-class-meta">
+              <div class="home-trainer-chip">
+                <?php if ($classTrainerImage !== ''): ?>
+                  <img src="<?= e($classTrainerImage) ?>" alt="<?= e($class['trainer_name']) ?>" class="home-trainer-chip-image">
+                <?php else: ?>
+                  <span class="home-trainer-chip-fallback">T</span>
+                <?php endif; ?>
+                <span><?= e($class['trainer_name']) ?></span>
+              </div>
+              <span class="badge-soft <?= $spotsLeft > 5 ? 'success' : 'warning' ?>">Spots left: <?= (int) $spotsLeft ?></span>
+            </div>
           </div>
         </article>
       </div>
@@ -74,8 +95,24 @@
   <p class="section-subtitle">Certified coaches focused on strength, mobility, and performance.</p>
   <div class="row g-3">
     <?php foreach ($trainers as $trainer): ?>
+      <?php
+        $trainerImage = media_url((string) ($trainer['image_path'] ?? ''), 'trainer');
+        $nameWords = preg_split('/\s+/', trim((string) ($trainer['name'] ?? ''))) ?: [];
+        $initials = '';
+        foreach (array_slice($nameWords, 0, 2) as $word) {
+          $initials .= strtoupper(substr((string) $word, 0, 1));
+        }
+        $initials = $initials !== '' ? $initials : 'T';
+      ?>
       <div class="col-md-4">
-        <article class="card h-100">
+        <article class="card h-100 home-trainer-card">
+          <div class="home-trainer-image-wrap">
+            <?php if ($trainerImage !== ''): ?>
+              <img src="<?= e($trainerImage) ?>" alt="<?= e($trainer['name']) ?>" class="home-trainer-image">
+            <?php else: ?>
+              <div class="home-trainer-image home-trainer-image-fallback"><?= e($initials) ?></div>
+            <?php endif; ?>
+          </div>
           <div class="card-body">
             <h3 class="h5"><?= e($trainer['name']) ?></h3>
             <p class="text-muted mb-2"><?= e($trainer['specialty']) ?></p>

@@ -4,7 +4,7 @@
   <div class="row g-3">
     <?php foreach ($trainers as $trainer): ?>
       <?php
-        $imagePath = (string) ($trainer['image_path'] ?? '');
+        $imagePath = media_url((string) ($trainer['image_path'] ?? ''), 'trainer');
         $hasPhoto = $imagePath !== '';
         $nameWords = preg_split('/\s+/', trim((string) ($trainer['name'] ?? ''))) ?: [];
         $initials = '';

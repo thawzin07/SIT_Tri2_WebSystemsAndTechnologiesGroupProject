@@ -4,7 +4,7 @@
   <?php
     $membershipStatus = $membership ? (string) ($membership['effective_status'] ?? $membership['status']) : 'inactive';
     $statusClass = $membershipStatus === 'active' ? 'success' : ($membershipStatus === 'queued' ? 'info' : 'warning');
-    $imagePath = (string) ($user['profile_image_path'] ?? '');
+    $imagePath = media_url((string) ($user['profile_image_path'] ?? ''), 'profile');
     $hasProfileImage = $imagePath !== '';
     $nameWords = preg_split('/\s+/', trim((string) ($user['full_name'] ?? ''))) ?: [];
     $initials = '';
