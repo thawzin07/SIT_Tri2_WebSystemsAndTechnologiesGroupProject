@@ -1,5 +1,5 @@
 <section class="container page-shell">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   
   <h1 class="section-title">Gym Locations</h1>
@@ -33,7 +33,7 @@
                   $mapsUrl .= "&destination_place_id=" . urlencode($location['map_place_id']);
                  }
             ?>
-            <a href="<?= $mapsUrl ?>" target="_blank" class="btn btn-primary w-100">Get Directions</a>
+            <a href="<?= e($mapsUrl) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-primary w-100">Get Directions</a>
           </div>
         </article>
       </div>
@@ -44,7 +44,7 @@
 var bounds = L.latLngBounds([1.144, 103.535], [1.494, 104.502]);
 var map = L.map('gym-map', {
     maxBounds: bounds,
-    maxBoundsViscosity: 1.0 
+    maxBoundsViscosity: 1.0
 }).setView([1.3521, 103.8198], 11);
 L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', {
     detectRetina: true,
@@ -53,25 +53,36 @@ L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', {
     attribution: '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo.png" style="height:20px;width:20px;"/> <a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener noreferrer">OneMap</a> © contributors | <a href="https://www.sla.gov.sg/" target="_blank" rel="noopener noreferrer">Singapore Land Authority</a>'
 }).addTo(map);
 
-var gymData = <?= json_encode($locations) ?>;
+var gymData = <?= json_encode($locations, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+var escapeHtml = function(value) {
+    return String(value || '').replace(/[&<>"']/g, function(ch) {
+        return ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[ch];
+    });
+};
 
 gymData.forEach(function(gym) {
     if (gym.latitude && gym.longitude) {
         var marker = L.marker([gym.latitude, gym.longitude]).addTo(map);
-        var popupMapsUrl = "";
+        var popupMapsUrl = '';
         if (gym.map_place_id) {
-            popupMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(gym.name)}&destination_place_id=${encodeURIComponent(gym.map_place_id)}`;
+            popupMapsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(gym.name) + '&destination_place_id=' + encodeURIComponent(gym.map_place_id);
         } else {
-            popupMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${gym.latitude},${gym.longitude}`;
+            popupMapsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + gym.latitude + ',' + gym.longitude;
         }
-        
-        marker.bindPopup(`
-            <div style="text-align: center;">
-                <b>${gym.name}</b><br>
-                <span style="font-size: 0.9em; color: #555;">${gym.address}</span><br><br>
-                <a href="${popupMapsUrl}" target="_blank" style="background: #0d6efd; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; display: inline-block;">📍 Get Directions</a>
-            </div>
-        `);
+
+        marker.bindPopup(
+            '<div style="text-align: center;">'
+            + '<b>' + escapeHtml(gym.name) + '</b><br>'
+            + '<span style="font-size: 0.9em; color: #555;">' + escapeHtml(gym.address) + '</span><br><br>'
+            + '<a href="' + popupMapsUrl + '" target="_blank" rel="noopener noreferrer" style="background: #0d6efd; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; display: inline-block;">Get Directions</a>'
+            + '</div>'
+        );
     }
 });
 
@@ -88,7 +99,7 @@ map.on('locationfound', function(e) {
     });
 
     L.marker(e.latlng, {icon: userIcon}).addTo(map)
-        .bindPopup("<b>You are here!</b>").openPopup();
+        .bindPopup('<b>You are here!</b>').openPopup();
 });
 </script>
 </section>

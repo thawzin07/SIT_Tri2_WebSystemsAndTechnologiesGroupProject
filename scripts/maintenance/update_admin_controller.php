@@ -1,4 +1,6 @@
 <?php
+
+chdir(dirname(__DIR__, 2));
 /**
  * Update AdminController to add trainer image upload functionality
  */

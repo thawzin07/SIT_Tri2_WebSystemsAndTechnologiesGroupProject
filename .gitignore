@@ -42,3 +42,5 @@ uploads/
 *.sqlite
 *.db
 
+
+composer-setup.php

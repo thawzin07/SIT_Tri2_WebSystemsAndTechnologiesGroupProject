@@ -48,12 +48,20 @@ class AdminController extends Controller
         verify_csrf();
 
         $fullName = trim((string) ($_POST['full_name'] ?? ''));
-        $email = trim((string) ($_POST['email'] ?? ''));
+        $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $phone = trim((string) ($_POST['phone'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
         $roleId = (int) ($_POST['role_id'] ?? 2);
 
-        if (!Validator::required($fullName) || !Validator::email($email) || !Validator::min($password, 8)) {
+        if (
+            !Validator::required($fullName)
+            || !Validator::max($fullName, 120)
+            || !Validator::email($email)
+            || !Validator::max($email, 150)
+            || !Validator::max($phone, 30)
+            || !Validator::min($password, 8)
+            || !Validator::max($password, 255)
+        ) {
             flash('error', 'Invalid user details.');
             redirect('/admin/users');
         }
@@ -84,10 +92,17 @@ class AdminController extends Controller
         $id = (int) ($_POST['id'] ?? 0);
         $roleId = (int) ($_POST['role_id'] ?? 2);
         $fullName = trim((string) ($_POST['full_name'] ?? ''));
-        $email = trim((string) ($_POST['email'] ?? ''));
+        $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $phone = trim((string) ($_POST['phone'] ?? ''));
 
-        if ($id < 1 || !Validator::required($fullName) || !Validator::email($email)) {
+        if (
+            $id < 1
+            || !Validator::required($fullName)
+            || !Validator::max($fullName, 120)
+            || !Validator::email($email)
+            || !Validator::max($email, 150)
+            || !Validator::max($phone, 30)
+        ) {
             flash('error', 'Invalid user update data.');
             redirect('/admin/users');
         }
