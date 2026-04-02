@@ -1,0 +1,27 @@
+name: Deploy to VM
+
+on:
+  push:
+    branches:
+      - vm_hosting
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.APP_DIR }}
+            git fetch origin
+            git checkout vm_hosting
+            git reset --hard origin/vm_hosting
+            composer install --no-dev --optimize-autoloader
+            sudo systemctl restart php8.2-fpm
+            sudo systemctl restart nginx
+            sudo systemctl restart pulsepoint-worker
