@@ -1,4 +1,5 @@
 <section class="container page-shell">
+  <?php partial('back_button', ['label' => 'Back', 'fallback' => '/']); ?>
   <h1 class="section-title">Admin Dashboard</h1>
   <p class="section-subtitle">Monitor key activity and jump into daily operations quickly.</p>
 

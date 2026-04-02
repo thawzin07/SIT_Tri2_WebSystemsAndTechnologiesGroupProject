@@ -110,6 +110,12 @@ function old(string $key, string $default = ''): string
     return e($_SESSION['old'][$key] ?? $default);
 }
 
+function old_values(string $key): array
+{
+    $value = $_SESSION['old'][$key] ?? [];
+    return is_array($value) ? $value : [];
+}
+
 function set_old(array $data): void
 {
     $_SESSION['old'] = $data;

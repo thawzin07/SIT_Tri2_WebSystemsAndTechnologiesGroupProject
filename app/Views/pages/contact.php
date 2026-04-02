@@ -1,4 +1,5 @@
 <section class="container page-shell">
+  <?php partial('back_button', ['label' => 'Back', 'fallback' => '/']); ?>
   <h1 class="section-title">Contact Us</h1>
   <p class="section-subtitle">Have a question about classes, membership plans, or facilities? Send us a message and we will get back to you.</p>
   <form action="/contact" method="post" class="card p-4" novalidate>

@@ -1,4 +1,5 @@
 <section class="container page-shell">
+  <?php partial('back_button', ['label' => 'Back', 'fallback' => '/member/dashboard']); ?>
   <h1 class="section-title">My Profile</h1>
   <p class="section-subtitle">Keep your details up to date so trainers and staff can reach you when needed.</p>
   <?php
