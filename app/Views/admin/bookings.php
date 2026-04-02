@@ -1,6 +1,12 @@
 <section class="container page-shell">
-  <h1 class="section-title">Manage Bookings</h1>
-  <p class="section-subtitle">Review booking records and update class attendance status.</p>
+  <?php partial('back_button', ['label' => 'Back', 'fallback' => '/admin/dashboard']); ?>
+  <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+    <div>
+      <h1 class="section-title mb-1">Manage Bookings</h1>
+      <p class="section-subtitle mb-0">Review booking records and update class attendance status.</p>
+    </div>
+    <a class="btn btn-brand" href="/admin/bookings/create">Add Booking</a>
+  </div>
 
   <div class="admin-toolbar">
     <label for="bookings-filter" class="form-label mb-1">Search Bookings</label>

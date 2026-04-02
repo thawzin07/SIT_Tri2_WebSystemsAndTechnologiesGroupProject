@@ -38,6 +38,35 @@ class UserModel extends BaseModel
         return $stmt->fetchAll();
     }
 
+    public function members(): array
+    {
+        $stmt = $this->db->prepare('SELECT u.id, u.full_name, u.email, u.phone, r.name AS role_name
+            FROM users u
+            JOIN roles r ON r.id = u.role_id
+            WHERE r.name = :role_name
+            ORDER BY u.full_name ASC, u.email ASC');
+        $stmt->execute(['role_name' => 'member']);
+        return $stmt->fetchAll();
+    }
+
+    public function findMembersByIds(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $sql = 'SELECT u.id, u.full_name, u.email, u.phone, r.name AS role_name
+            FROM users u
+            JOIN roles r ON r.id = u.role_id
+            WHERE r.name = ? AND u.id IN (' . $placeholders . ')
+            ORDER BY u.full_name ASC, u.email ASC';
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(array_merge(['member'], $ids));
+        return $stmt->fetchAll();
+    }
+
     public function updateBasic(int $id, string $fullName, string $phone): void
     {
         $stmt = $this->db->prepare('UPDATE users SET full_name = :full_name, phone = :phone, updated_at = NOW() WHERE id = :id');

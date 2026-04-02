@@ -1,4 +1,5 @@
 <section class="container page-shell">
+  <?php partial('back_button', ['label' => 'Back', 'fallback' => '/admin/dashboard']); ?>
   <h1 class="section-title">Contact Messages</h1>
   <p class="section-subtitle">Review incoming support inquiries and keep inbox clean.</p>
 

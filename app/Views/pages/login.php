@@ -1,5 +1,6 @@
 <section class="container page-shell">
   <div class="form-shell">
+    <?php partial('back_button', ['label' => !empty($adminMode) ? 'Back' : 'Back', 'fallback' => !empty($adminMode) ? '/' : '/']); ?>
     <form action="<?= !empty($adminMode) ? '/admin/login' : '/login' ?>" method="post" class="card p-4 p-md-5" novalidate>
       <?= csrf_input() ?>
       <p class="text-uppercase small text-muted mb-2"><?= !empty($adminMode) ? 'Admin Access' : 'Member Access' ?></p>

@@ -1,5 +1,6 @@
 <section class="container page-shell">
   <div class="form-shell">
+    <?php partial('back_button', ['label' => 'Back', 'fallback' => '/']); ?>
     <form action="/register" method="post" class="card p-4 p-md-5" novalidate>
       <?= csrf_input() ?>
       <p class="text-uppercase small text-muted mb-2">New Member</p>

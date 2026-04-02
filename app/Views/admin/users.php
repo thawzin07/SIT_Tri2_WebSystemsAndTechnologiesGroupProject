@@ -1,4 +1,5 @@
 <section class="container page-shell">
+  <?php partial('back_button', ['label' => 'Back', 'fallback' => '/admin/dashboard']); ?>
   <h1 class="section-title">Manage Users</h1>
   <p class="section-subtitle">Create users, update profile details, and manage role access.</p>
 

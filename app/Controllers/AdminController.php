@@ -12,6 +12,7 @@ use App\Models\MembershipModel;
 use App\Models\MembershipPlanModel;
 use App\Models\TrainerModel;
 use App\Models\UserModel;
+use App\Services\BookingService;
 
 class AdminController extends Controller
 {
@@ -381,7 +382,97 @@ class AdminController extends Controller
     public function bookings(): void
     {
         $this->requireAdmin();
-        $this->render('admin/bookings', ['title' => 'Manage Bookings', 'bookings' => (new BookingModel())->allWithDetails()]);
+        $this->render('admin/bookings', [
+            'title' => 'Manage Bookings',
+            'bookings' => (new BookingModel())->allWithDetails(),
+        ]);
+    }
+
+    public function showCreateBooking(): void
+    {
+        $this->requireAdmin();
+
+        $userModel = new UserModel();
+        $classModel = new GymClassModel();
+
+        $this->render('admin/create_booking', [
+            'title' => 'Add Booking',
+            'members' => $userModel->members(),
+            'classes' => $classModel->upcomingActive(),
+        ]);
+    }
+
+    public function createBooking(): void
+    {
+        $this->requireAdmin();
+        verify_csrf();
+
+        $classId = (int) ($_POST['class_id'] ?? 0);
+        set_old($_POST);
+        $userIds = array_values(array_unique(array_filter(
+            array_map('intval', (array) ($_POST['user_ids'] ?? [])),
+            static fn (int $id): bool => $id > 0
+        )));
+
+        if ($classId < 1 || $userIds === []) {
+            flash('error', 'Select a class and at least one member.');
+            redirect('/admin/bookings/create');
+        }
+
+        $memberRows = (new UserModel())->findMembersByIds($userIds);
+        $membersById = [];
+        foreach ($memberRows as $member) {
+            $membersById[(int) $member['id']] = $member;
+        }
+
+        if (count($membersById) !== count($userIds)) {
+            flash('error', 'One or more selected users are not valid member accounts.');
+            redirect('/admin/bookings/create');
+        }
+
+        $bookingService = new BookingService();
+        $counts = [
+            'booked' => 0,
+            'waitlisted' => 0,
+            'already_booked' => 0,
+            'already_waitlisted' => 0,
+            'class_unavailable' => 0,
+        ];
+
+        foreach ($userIds as $userId) {
+            $status = $bookingService->bookOrWaitlist($userId, $classId);
+            if (!array_key_exists($status, $counts)) {
+                $status = 'class_unavailable';
+            }
+            $counts[$status]++;
+        }
+
+        $summary = [];
+        if ($counts['booked'] > 0) {
+            $summary[] = $counts['booked'] . ' booked';
+        }
+        if ($counts['waitlisted'] > 0) {
+            $summary[] = $counts['waitlisted'] . ' waitlisted';
+        }
+        if ($counts['already_booked'] > 0) {
+            $summary[] = $counts['already_booked'] . ' already booked';
+        }
+        if ($counts['already_waitlisted'] > 0) {
+            $summary[] = $counts['already_waitlisted'] . ' already waitlisted';
+        }
+        if ($counts['class_unavailable'] > 0) {
+            $summary[] = $counts['class_unavailable'] . ' unavailable';
+        }
+
+        $message = 'Booking request processed.';
+        if ($summary !== []) {
+            $message .= ' ' . implode(', ', $summary) . '.';
+        }
+
+        $flashType = ($counts['booked'] > 0 || $counts['waitlisted'] > 0) ? 'success' : 'error';
+        clear_old();
+        flash($flashType, $message);
+        redirect('/admin/bookings');
     }
 
     public function updateBooking(): void
