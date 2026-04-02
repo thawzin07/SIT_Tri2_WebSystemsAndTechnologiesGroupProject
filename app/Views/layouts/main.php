@@ -28,7 +28,7 @@
   <div id="chatbot-container" class="chatbot-container d-none">
     <div class="chatbot-header">
       <div class="chatbot-header-copy">
-        <h3 class="h5">PulsePoint Assistant</h3>
+        <h2 class="h5">PulsePoint Assistant</h2>
         <p>Ask about plans, classes, trainers, and bookings.</p>
       </div>
       <div class="chatbot-header-actions">
