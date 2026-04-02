@@ -1,4 +1,6 @@
 <?php
+
+chdir(dirname(__DIR__, 2));
 /**
  * Add CSS styling for trainer photo cards
  */

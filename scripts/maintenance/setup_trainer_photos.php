@@ -1,4 +1,6 @@
 <?php
+
+chdir(dirname(__DIR__, 2));
 /**
  * Setup script to add trainer photo upload functionality
  */

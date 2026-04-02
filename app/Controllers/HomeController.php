@@ -57,6 +57,16 @@ class HomeController extends Controller
         $trainerId = (int) ($_GET['trainer'] ?? 0);
         $locationId = (int) ($_GET['location'] ?? 0);
 
+        if ($date !== '' && !Validator::date($date)) {
+            $date = '';
+        }
+        if ($dateFrom !== '' && !Validator::date($dateFrom)) {
+            $dateFrom = '';
+        }
+        if ($dateTo !== '' && !Validator::date($dateTo)) {
+            $dateTo = '';
+        }
+
         if (!$date && !$dateFrom && !$dateTo) {
             $dateFrom = date('Y-m-d');
             $dateTo = date('Y-m-d', strtotime('+14 days'));
@@ -107,7 +117,16 @@ class HomeController extends Controller
 
         set_old($_POST);
 
-        if (!Validator::required($name) || !Validator::required($subject) || !Validator::required($message) || !Validator::email($email)) {
+        if (
+            !Validator::required($name)
+            || !Validator::max($name, 120)
+            || !Validator::required($subject)
+            || !Validator::max($subject, 180)
+            || !Validator::required($message)
+            || !Validator::max($message, 4000)
+            || !Validator::email($email)
+            || !Validator::max($email, 150)
+        ) {
             flash('error', 'Please provide valid contact details.');
             redirect('/contact');
         }

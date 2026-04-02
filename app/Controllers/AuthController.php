@@ -19,14 +19,23 @@ class AuthController extends Controller
         verify_csrf();
 
         $fullName = trim((string) ($_POST['full_name'] ?? ''));
-        $email = trim((string) ($_POST['email'] ?? ''));
+        $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $phone = trim((string) ($_POST['phone'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
         $confirmPassword = (string) ($_POST['password_confirmation'] ?? '');
 
         set_old($_POST);
 
-        if (!Validator::required($fullName) || !Validator::email($email) || !Validator::min($password, 8) || $password !== $confirmPassword) {
+        if (
+            !Validator::required($fullName)
+            || !Validator::max($fullName, 120)
+            || !Validator::email($email)
+            || !Validator::max($email, 150)
+            || !Validator::max($phone, 30)
+            || !Validator::min($password, 8)
+            || !Validator::max($password, 255)
+            || $password !== $confirmPassword
+        ) {
             flash('error', 'Please fill in valid registration details.');
             redirect('/register');
         }
@@ -76,11 +85,11 @@ class AuthController extends Controller
     {
         verify_csrf();
 
-        $email = trim((string) ($_POST['email'] ?? ''));
+        $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
         set_old($_POST);
 
-        if (!Validator::email($email) || !Validator::required($password)) {
+        if (!Validator::email($email) || !Validator::max($email, 150) || !Validator::required($password) || !Validator::max($password, 255)) {
             flash('error', 'Invalid login details.');
             redirect($adminOnly ? '/admin/login' : '/login');
         }
@@ -91,6 +100,10 @@ class AuthController extends Controller
         if (!$user || !password_verify($password, $user['password_hash'])) {
             flash('error', 'Email or password is incorrect.');
             redirect($adminOnly ? '/admin/login' : '/login');
+        }
+
+        if (password_needs_rehash((string) $user['password_hash'], PASSWORD_DEFAULT)) {
+            $userModel->updatePasswordHash((int) $user['id'], password_hash($password, PASSWORD_DEFAULT));
         }
 
         $userWithRole = $userModel->findWithRole((int) $user['id']);
