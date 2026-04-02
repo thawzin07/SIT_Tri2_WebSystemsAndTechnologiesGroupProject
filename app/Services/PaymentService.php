@@ -169,6 +169,7 @@ class PaymentService
     {
         $sessionId = (string) ($session['id'] ?? '');
         $intentId = is_string($session['payment_intent'] ?? null) ? (string) $session['payment_intent'] : null;
+        $shouldProcessQueue = false;
 
         $this->db->beginTransaction();
         try {
@@ -197,12 +198,17 @@ class PaymentService
 
             $invoice = $this->ensureInvoiceExists($payment);
             $this->queueNotificationHooks($payment);
+            $shouldProcessQueue = true;
             $this->db->commit();
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             throw $e;
+        }
+
+        if ($shouldProcessQueue) {
+            $this->processQueuedNotificationsSafely();
         }
     }
 
@@ -532,5 +538,14 @@ class PaymentService
         return $expectedHost !== '' && $expectedHost === $actualHost
             && $expectedScheme === $actualScheme
             && $expectedPort === $actualPort;
+    }
+
+    private function processQueuedNotificationsSafely(): void
+    {
+        try {
+            $this->notificationLogModel->processQueue();
+        } catch (Throwable $e) {
+            error_log('Queued notification processing failed after checkout completion: ' . $e->getMessage());
+        }
     }
 }
