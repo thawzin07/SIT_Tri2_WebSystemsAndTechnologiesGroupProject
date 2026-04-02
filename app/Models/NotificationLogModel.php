@@ -40,32 +40,65 @@ class NotificationLogModel extends BaseModel
 
         foreach ($pendingLogs as $log) {
             $success = false;
-            $payload = json_decode($log['payload_json'], true);
+            $errorMessage = null;
+            $payload = json_decode((string) ($log['payload_json'] ?? ''), true);
+            if (!is_array($payload)) {
+                $payload = [];
+            }
 
             if ($log['channel'] === 'email') {
-                $success = $this->processEmail($log['target'], $log['event_type'], $payload);
+                $emailTarget = $this->resolveRegisteredEmailTarget((int) ($log['user_id'] ?? 0), (string) ($log['target'] ?? ''));
+                if ($emailTarget === '') {
+                    $errorMessage = 'Missing valid recipient email.';
+                } else {
+                    [$success, $errorMessage] = $this->processEmail($emailTarget, (string) $log['event_type'], $payload);
+                }
             } elseif ($log['channel'] === 'telegram') {
-                $success = $this->processTelegram($log['target'], $log['event_type'], $payload);
+                [$success, $errorMessage] = $this->processTelegram((string) $log['target'], (string) $log['event_type'], $payload);
             }
 
             $newStatus = $success ? 'sent' : 'failed';
-            $updateStmt = $this->db->prepare("UPDATE notification_logs SET status = :status, sent_at = NOW() WHERE id = :id");
+            $updateStmt = $this->db->prepare("UPDATE notification_logs SET status = :status, error_message = :error_message, sent_at = NOW() WHERE id = :id");
             $updateStmt->execute([
-                'status' => $newStatus, 
-                'id' => $log['id']
+                'status' => $newStatus,
+                'error_message' => $success ? null : substr((string) ($errorMessage ?: 'Delivery failed.'), 0, 255),
+                'id' => $log['id'],
             ]);
             
             echo "Message ID {$log['id']} marked as {$newStatus}.\n";
         }
     }
 
-    private function processEmail($toEmail, $eventType, $payload)
+    private function resolveRegisteredEmailTarget(int $userId, string $fallbackTarget): string
     {
-    if (!class_exists(PHPMailer::class)) return false;
+        if ($userId > 0) {
+            $stmt = $this->db->prepare('SELECT email FROM users WHERE id = :id LIMIT 1');
+            $stmt->execute(['id' => $userId]);
+            $row = $stmt->fetch();
+            $email = trim((string) ($row['email'] ?? ''));
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return $email;
+            }
+        }
+
+        $fallbackTarget = trim($fallbackTarget);
+        return filter_var($fallbackTarget, FILTER_VALIDATE_EMAIL) ? $fallbackTarget : '';
+    }
+
+    private function processEmail($toEmail, $eventType, array $payload): array
+    {
+    if (!class_exists(PHPMailer::class)) {
+        return [false, 'PHPMailer class not available.'];
+    }
 
     $smtpUsername = $_ENV['SMTP_USERNAME'] ?? getenv('SMTP_USERNAME') ?: '';
     $smtpPassword = $_ENV['SMTP_PASSWORD'] ?? getenv('SMTP_PASSWORD') ?: '';
-    if ($smtpUsername === '' || $smtpPassword === '') return false;
+    if ($smtpUsername === '' || $smtpPassword === '') {
+        return [false, 'SMTP credentials missing (SMTP_USERNAME / SMTP_PASSWORD).'];
+    }
+    if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+        return [false, 'Recipient email is invalid.'];
+    }
 
     $mail = new PHPMailer(true);
     $subject = "PulsePoint Fitness Update";
@@ -107,15 +140,21 @@ class NotificationLogModel extends BaseModel
         $mail->Subject = $subject;
         $mail->Body    = $message;
 
-        return $mail->send();
+        $sent = $mail->send();
+        return [$sent, $sent ? null : 'Unknown SMTP failure.'];
     } catch (\Exception $e) {
-        return false;
+        return [false, $e->getMessage()];
     }
 }
 
-    private function processTelegram($chatId, $eventType, $payload)
+    private function processTelegram($chatId, $eventType, array $payload): array
     {
-    if (empty($chatId) || $this->telegramBotToken === '') return false;
+    if (empty($chatId)) {
+        return [false, 'Telegram chat id is empty.'];
+    }
+    if ($this->telegramBotToken === '') {
+        return [false, 'TELEGRAM_BOT_TOKEN is missing.'];
+    }
 
     $isRenew = ($eventType === 'membership_renewed' || ($payload['payment_type'] ?? '') === 'renew');
     $icon = $isRenew ? "🔄" : "🆕";
@@ -133,6 +172,16 @@ class NotificationLogModel extends BaseModel
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
     $response = curl_exec($ch);
-    return (curl_getinfo($ch, CURLINFO_HTTP_CODE) == 200);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if ($response === false) {
+        $err = curl_error($ch);
+        curl_close($ch);
+        return [false, $err !== '' ? $err : 'Telegram request failed.'];
+    }
+    curl_close($ch);
+    if ($httpCode !== 200) {
+        return [false, 'Telegram API returned HTTP ' . $httpCode . '.'];
+    }
+    return [true, null];
     }
 }
