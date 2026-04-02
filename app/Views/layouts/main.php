@@ -28,7 +28,7 @@
   <div id="chatbot-container" class="chatbot-container d-none">
     <div class="chatbot-header">
       <div class="chatbot-header-copy">
-        <h5>PulsePoint Assistant</h5>
+        <h3 class="h5">PulsePoint Assistant</h3>
         <p>Ask about plans, classes, trainers, and bookings.</p>
       </div>
       <div class="chatbot-header-actions">
@@ -37,15 +37,15 @@
       </div>
     </div>
     <div id="chatbot-messages" class="chatbot-messages"></div>
-    <div class="chatbot-quick-prompts" id="chatbot-quick-prompts" aria-label="Suggested questions">
+    <div class="chatbot-quick-prompts" id="chatbot-quick-prompts" role="group" aria-label="Suggested questions">
       <button type="button" class="chatbot-prompt-btn" data-chatbot-prompt="What membership plans do you offer?">Plans</button>
       <button type="button" class="chatbot-prompt-btn" data-chatbot-prompt="Who are your trainers and what do they teach?">Trainers</button>
       <button type="button" class="chatbot-prompt-btn" data-chatbot-prompt="How can I book a class?">Book class</button>
       <button type="button" class="chatbot-prompt-btn" data-chatbot-prompt="Where are your gym locations?">Locations</button>
     </div>
     <div class="chatbot-input">
-      <input type="text" id="chatbot-input" placeholder="Ask your question..." autocomplete="off">
-      <button id="chatbot-send" class="btn btn-primary btn-sm">Send</button>
+      <input type="text" id="chatbot-input" placeholder="Ask your question..." autocomplete="off" aria-label="Chat message input">
+      <button id="chatbot-send" class="btn btn-primary btn-sm" type="button">Send</button>
     </div>
   </div>
 </div>

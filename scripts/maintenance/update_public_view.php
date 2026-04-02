@@ -1,4 +1,6 @@
 <?php
+
+chdir(dirname(__DIR__, 2));
 /**
  * Update pages/trainers.php to display trainer photos
  */

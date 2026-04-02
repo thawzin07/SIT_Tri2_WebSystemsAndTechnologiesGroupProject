@@ -25,7 +25,8 @@ class ChatbotController extends Controller
             return;
         }
 
-        if (strlen($message) > 1000) {
+        $messageLength = function_exists('mb_strlen') ? mb_strlen($message) : strlen($message);
+        if ($messageLength > 1000) {
             http_response_code(422);
             echo json_encode(['error' => 'Message is too long.']);
             return;

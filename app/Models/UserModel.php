@@ -95,6 +95,15 @@ class UserModel extends BaseModel
         $stmt->execute(['role_id' => $roleId, 'full_name' => $fullName, 'email' => $email, 'phone' => $phone, 'id' => $id]);
     }
 
+    public function updatePasswordHash(int $id, string $passwordHash): void
+    {
+        $stmt = $this->db->prepare('UPDATE users SET password_hash = :password_hash, updated_at = NOW() WHERE id = :id');
+        $stmt->execute([
+            'password_hash' => $passwordHash,
+            'id' => $id,
+        ]);
+    }
+
     public function delete(int $id): void
     {
         $stmt = $this->db->prepare('DELETE FROM users WHERE id = :id');

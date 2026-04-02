@@ -1,4 +1,6 @@
 <?php
+
+chdir(dirname(__DIR__, 2));
 /**
  * Update admin/trainers.php to use file input for image upload
  */
