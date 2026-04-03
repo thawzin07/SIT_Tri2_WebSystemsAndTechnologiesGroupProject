@@ -1,90 +1,144 @@
 # PulsePoint Fitness
 
-PulsePoint Fitness is a student full-stack gym membership web app built with plain PHP, MySQL, Bootstrap, CSS, and vanilla JavaScript.
+## Team Members
 
-## Features
+- Thaw Zin Htun
+- Chia Yu Wei
+- Aiken Choo Hong Yi
+- Tan Jian Yan
+- Mohamad Danish Bin Mohammad
 
-- Public pages: Home, About, Plans, Trainers, Schedule, Locations, Contact, FAQ
-- Auth: register, member login, admin login, logout
-- Member module: profile, memberships, bookings, waitlist
-- Admin module: dashboard + CRUD for users, plans, trainers, classes, locations, bookings, messages
-- Stripe billing module: checkout, webhook processing, payment history, retry/resume checkout flow
-- Security basics: prepared statements, password hashing, CSRF tokens, escaping, role checks
+
+
+## Overview
+
+PulsePoint Fitness is a full-stack gym management web application built with plain PHP, MySQL, Bootstrap, CSS, and vanilla JavaScript. It supports public browsing, member self-service flows, and full admin operations.
+
+## Key Features
+
+- Public pages: home, plans, schedule, trainers, locations, about, FAQ, contact
+- Authentication: member/admin login, registration, logout
+- Member module: profile updates, memberships, class booking and waitlist, billing history, invoice download
+- Admin module: dashboard and CRUD for users, plans, trainers, classes, locations, bookings, and messages
+- Payments: Stripe checkout + webhook reconciliation flow
+- Notifications: queued email and Telegram support for payment events
+- Chatbot: OpenAI-powered gym assistant
+- Security controls: PDO prepared statements, CSRF protection, password hashing, output escaping, role-based access checks
 
 ## Tech Stack
 
-- PHP 8+
+- Backend: PHP 8+, MySQL 8+
+- Frontend: HTML5, Bootstrap 5, CSS, vanilla JavaScript
+- Integrations: Stripe API, OpenAI API, PHPMailer, Telegram Bot API
+- Deployment: Google Cloud VM + GitHub Actions (`vm_hosting` branch workflow)
+
+## Repository Structure
+
+- `app/Controllers/` request handlers
+- `app/Models/` data access layer
+- `app/Services/` business and integration services
+- `app/Views/` layouts, partials, and page templates
+- `config/` app, database, routes, payments, OpenAI config
+- `public/` front controller and static assets
+- `database/` SQL bundles and archived migration/seed history
+- `.github/workflows/deploy-vm.yml` VM deployment workflow
+
+## Local Setup
+
+1. Install prerequisites:
+- PHP 8+ (`pdo_mysql`, `curl`, `fileinfo`, `mbstring`, `openssl`)
 - MySQL 8+
-- Bootstrap 5 + HTML/CSS/JavaScript
+- Composer
 
-## Project Structure
+2. Install dependencies:
+```bash
+composer install
+```
 
-- `public/` app entry and static assets
-- `app/Controllers/` controllers
-- `app/Models/` models
-- `app/Views/` pages, layouts, partials
-- `config/` app and route config
-- `database/migrations/` schema migrations
-- `database/seeds/` seed scripts
-
-## Quick Setup
-
-1. Copy env file:
+3. Create environment file:
 ```bash
 cp .env.example .env
 ```
-On Windows PowerShell:
+PowerShell:
 ```powershell
 Copy-Item .env.example .env
 ```
 
-2. Update `.env`:
+4. Update `.env` (minimum required values):
 - `APP_URL=http://localhost:8000`
 - `DB_HOST=127.0.0.1`
 - `DB_PORT=3306`
 - `DB_NAME=pulsepoint_fitness`
-- `DB_USER=root`
-- `DB_PASS=<your_password>`
-- `STRIPE_SECRET_KEY=<your_stripe_secret>`
-- `STRIPE_PUBLISHABLE_KEY=<your_stripe_publishable>`
-- `STRIPE_WEBHOOK_SECRET=<your_webhook_signing_secret>`
-- `STRIPE_CURRENCY=usd`
-- `STRIPE_PROMO_CODES=WELCOME10:coupon_xxx`
+- `DB_USER=<your_db_user>`
+- `DB_PASS=<your_db_password>`
 
-3. Create database:
-```sql
-CREATE DATABASE IF NOT EXISTS pulsepoint_fitness;
-```
+5. Import database:
+- Recommended single import:
+  - `database/all_migrations_and_seeds.sql`
+- Alternative split files:
+  - `database/migration.sql`
+  - `database/seed.sql`
 
-4. Run SQL scripts in this order:
-
-Migrations:
-1. `database/migrations/001_init_schema.sql`
-2. `database/migrations/002_waitlist_and_booking_integrity.sql`
-3. `database/migrations/003_add_media_payment_notifications_qr.sql`
-
-Seeds:
-1. `database/seeds/001_seed_data.sql`
-2. `database/seeds/002_seed_media_payment_qr_demo.sql`
-
-5. Start the app:
+6. Start local server:
 ```bash
-php -S localhost:8000 -t public
+php -S localhost:8000 -t public public/router.php
 ```
-If `php` is not in PATH (example XAMPP):
+PowerShell example (XAMPP):
 ```powershell
-& "C:\xampp\php\php.exe" -S localhost:8000 -t public
+& "C:\xampp\php\php.exe" -S localhost:8000 -t public public/router.php
 ```
 
-6. Open:
-- `http://localhost:8000/`
+7. Open:
+- `http://localhost:8000`
 
-## Demo Accounts
+## Optional Integrations (Environment Variables)
+
+- Stripe:
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_PUBLISHABLE_KEY`
+  - `STRIPE_WEBHOOK_SECRET`
+  - `STRIPE_CURRENCY` (default: `sgd`)
+  - `STRIPE_PROMO_CODES`
+- OpenAI chatbot:
+  - `OPENAI_API_KEY`
+  - `OPENAI_MODEL`
+  - `OPENAI_MAX_OUTPUT_TOKENS`
+  - `OPENAI_TIMEOUT_SECONDS`
+- Notifications:
+  - `SMTP_USERNAME`
+  - `SMTP_PASSWORD`
+  - `TELEGRAM_BOT_TOKEN` (optional, for Telegram notifications)
+
+## Notification Worker
+
+- Run once:
+```bash
+php run_notifications.php
+```
+- Run continuously:
+```bash
+php start_worker.php
+```
+
+## Demo Credentials
 
 - Admin: `admin@pulsepoint.test` / `Admin@123`
 - Member: `member@pulsepoint.test` / `Member@123`
 
-## Notes
+## Deployment Workflow (VM)
 
-- This is a fictional coursework project.
-- No external backend framework is used.
+- Develop in `thawzin-dev`
+- Merge into `main`
+- Merge `main` into `vm_hosting`
+- Push `vm_hosting` to trigger `.github/workflows/deploy-vm.yml`
+
+Required GitHub secrets:
+
+- `VM_HOST`
+- `VM_USER`
+- `VM_SSH_KEY`
+- `APP_DIR`
+
+## Academic Note
+
+- This project is a fictional coursework system for INF1005.
